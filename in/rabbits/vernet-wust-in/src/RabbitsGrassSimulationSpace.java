@@ -8,13 +8,15 @@ import uchicago.src.sim.space.Object2DTorus;
 public class RabbitsGrassSimulationSpace {
 
     private Object2DTorus grassSpace;
-    private Object2DTorus agentSpace;
+    private Object2DTorus rabbitSpace;
 
     public RabbitsGrassSimulationSpace(int xSize, int ySize){
         grassSpace = new Object2DTorus(xSize, ySize);
+        rabbitSpace = new Object2DTorus(xSize, ySize);
+
         for(int i = 0; i < xSize; i++){
             for(int j = 0; j < ySize; j++){
-                grassSpace.putObjectAt(i, j, new Integer(0));
+                grassSpace.putObjectAt(i, j, 0);
             }
         }
     }
@@ -45,20 +47,20 @@ public class RabbitsGrassSimulationSpace {
     }
 
     public boolean isRabbitCellOccupied(int x, int y){
-        if(agentSpace.getObjectAt(x, y)!=null) return true;
+        if(rabbitSpace.getObjectAt(x, y)!=null) return true;
         return false;
     }
 
     public boolean addAgent(RabbitsGrassSimulationAgent agent){
         boolean retVal = false;
         int count = 0;
-        int countLimit = 10 * agentSpace.getSizeX() * agentSpace.getSizeY();
+        int countLimit = 10 * rabbitSpace.getSizeX() * rabbitSpace.getSizeY();
 
         while((retVal==false) && (count < countLimit)){
-            int x = (int)(Math.random()*(agentSpace.getSizeX()));
-            int y = (int)(Math.random()*(agentSpace.getSizeY()));
+            int x = (int)(Math.random()*(rabbitSpace.getSizeX()));
+            int y = (int)(Math.random()*(rabbitSpace.getSizeY()));
             if(isRabbitCellOccupied(x,y) == false){
-                agentSpace.putObjectAt(x,y,agent);
+                rabbitSpace.putObjectAt(x,y,agent);
                 //agent.setXY(x,y);
                 retVal = true;
             }
