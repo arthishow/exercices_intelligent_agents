@@ -23,20 +23,20 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	private static final int GRID_SIZE = 20;
 	private static final int NUM_INIT_RABBITS = 20;
 	private static final int NUM_INIT_GRASS = 20;
-	private static final double GRASS_GROWTH_RATE = 20;
-	private static final double BIRTH_THRESHOLD = 20;
+	private static final int GRASS_GROWTH_RATE = 20;
+	private static final int BIRTH_THRESHOLD = 20;
 	private static final int RABBIT_INIT_ENERGY = 20;
 
 	private Schedule schedule;
 	private RabbitsGrassSimulationSpace rabbitsGrassSpace;
 	private ArrayList rabbitList;
 	private DisplaySurface displaySurface;
-	private int GridSize = GRID_SIZE;
-	private int NumInitRabbits = NUM_INIT_RABBITS;
-	private int NumInitGrass = NUM_INIT_GRASS;
-	private int RabbitInitEnergy = RABBIT_INIT_ENERGY;
-	private double GrassGrowthRate = GRASS_GROWTH_RATE;
-	private double BirthThreshold = BIRTH_THRESHOLD;
+	private int gridSize = GRID_SIZE;
+	private int numInitRabbits = NUM_INIT_RABBITS;
+	private int numInitGrass = NUM_INIT_GRASS;
+	private int rabbitInitEnergy = RABBIT_INIT_ENERGY;
+	private double grassGrowthRate = GRASS_GROWTH_RATE;
+	private double birthThreshold = BIRTH_THRESHOLD;
 
 	public static void main(String[] args) {
 
@@ -63,8 +63,17 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 
 	private void buildModel(){
 		System.out.println("Running BuildModel");
-		rabbitsGrassSpace = new RabbitsGrassSimulationSpace(GridSize, GridSize);
-		rabbitsGrassSpace.spreadGrass(NumInitGrass);
+		rabbitsGrassSpace = new RabbitsGrassSimulationSpace(gridSize, gridSize);
+		rabbitsGrassSpace.spreadGrass(numInitGrass);
+
+		for(int i = 0; i < numInitRabbits; i++){
+			addNewRabbit();
+		}
+	}
+
+	private void addNewRabbit(){
+		RabbitsGrassSimulationAgent rabbit = new RabbitsGrassSimulationAgent(rabbitInitEnergy);
+		rabbitList.add(rabbit);
 	}
 
 	private void buildSchedule(){
@@ -125,50 +134,50 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	}
 
 	public int getGridSize() {
-		return GridSize;
+		return gridSize;
 	}
 
 	public void setGridSize(int gridSize) {
-		GridSize = gridSize;
+		gridSize = gridSize;
 	}
 
 	public int getNumInitRabbits() {
-		return NumInitRabbits;
+		return numInitRabbits;
 	}
 
 	public void setNumInitRabbits(int numInitRabbits) {
-		NumInitRabbits = numInitRabbits;
+		numInitRabbits = numInitRabbits;
 	}
 
 	public int getNumInitGrass() {
-		return NumInitGrass;
+		return numInitGrass;
 	}
 
 	public void setNumInitGrass(int numInitGrass) {
-		NumInitGrass = numInitGrass;
+		numInitGrass = numInitGrass;
 	}
 
 	public double getGrassGrowthRate() {
-		return GrassGrowthRate;
+		return grassGrowthRate;
 	}
 
 	public void setGrassGrowthRate(double grassGrowthRate) {
-		GrassGrowthRate = grassGrowthRate;
+		grassGrowthRate = grassGrowthRate;
 	}
 
 	public double getBirthThreshold() {
-		return BirthThreshold;
+		return birthThreshold;
 	}
 
 	public void setBirthThreshold(double birthThreshold) {
-		BirthThreshold = birthThreshold;
+		birthThreshold = birthThreshold;
 	}
 
 	public int getRabbitInitEnergy() {
-		return RabbitInitEnergy;
+		return rabbitInitEnergy;
 	}
 
 	public void setRabbitInitEnergy(int rabbitInitEnergy) {
-		RabbitInitEnergy = rabbitInitEnergy;
+		rabbitInitEnergy = rabbitInitEnergy;
 	}
 }

@@ -37,4 +37,9 @@ public class RabbitsGrassSimulationAgent implements Drawable {
 		return 0;
 	}
 
+	public void setXY(int newX, int newY){
+		x = newX;
+		y = newY;
+	}
+
 }
