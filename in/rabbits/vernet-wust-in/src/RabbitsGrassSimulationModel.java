@@ -42,9 +42,6 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	private int BirthThreshold = BIRTH_THRESHOLD;
 
 	public static void main(String[] args) {
-
-		System.out.println("Rabbit skeleton");
-
 		SimInit init = new SimInit();
 		RabbitsGrassSimulationModel model = new RabbitsGrassSimulationModel();
 		// Do "not" modify the following lines of parsing arguments
@@ -57,7 +54,6 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 
 	// responsible for initializing the simulation
 	public void begin() {
-		// TODO Auto-generated method stub
 		buildModel();
 		buildSchedule();
 		buildDisplay();
@@ -65,16 +61,11 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	}
 
 	private void buildModel(){
-		System.out.println("Running BuildModel");
 		rabbitsGrassSpace = new RabbitsGrassSimulationSpace(GridSize, GridSize);
 		rabbitsGrassSpace.spreadGrass(NumInitGrass);
 
 		for(int i = 0; i < NumInitRabbits; i++){
 			addNewRabbit();
-		}
-
-		for (RabbitsGrassSimulationAgent rabbit : rabbitList) {
-			rabbit.report();
 		}
 	}
 
@@ -98,18 +89,16 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	}
 
 	private void buildSchedule(){
-		System.out.println("Running BuildSchedule");
 
 		class RabbitStep extends BasicAction {
 			public void execute() {
 				SimUtilities.shuffle(rabbitList);
-				for(int i =0; i < rabbitList.size(); i++){
-					RabbitsGrassSimulationAgent rabbit = rabbitList.get(i);
+				for(RabbitsGrassSimulationAgent rabbit: rabbitList){
 					rabbit.step();
+					rabbit.report();
 				}
 
 				reapDeadRabbits();
-
 				displaySurface.updateDisplay();
 			}
 		}
@@ -122,12 +111,11 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 			}
 		}
 
-		schedule.scheduleActionAtInterval(10, new RabbitCountLiving());
+		schedule.scheduleActionAtInterval(1, new RabbitCountLiving());
 
 	}
 
 	private void buildDisplay(){
-		System.out.println("Running BuildDisplay");
 		ColorMap map = new ColorMap();
 
 		map.mapColor(0, Color.white);
@@ -140,13 +128,11 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 
 		displaySurface.addDisplayableProbeable(displayGrass, "Grass");
 		displaySurface.addDisplayableProbeable(displayRabbits, "Rabbits");
-
 	}
 
 	// returns an array of String variables, each one listing the name of a particular parameter
 	// that you want to be available to vary using the RePast control panel
 	public String[] getInitParam() {
-		// TODO Auto-generated method stub
 		// Parameters to be set by users via the Repast UI slider bar
 		// Do "not" modify the parameters names provided in the skeleton code, you can add more if you want
 		String[] params = { "GridSize", "NumInitRabbits", "NumInitGrass", "GrassGrowthRate", "BirthThreshold", "RabbitInitEnergy"};
@@ -156,20 +142,17 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	// returns the name of the simulation model being run
 	// this name appears in some of the RePast toolbars (though not the one shown)
 	public String getName() {
-		// TODO Auto-generated method stub
 		return "Rabbits simulation";
 	}
 
 	// return an object of type ‘Schedule.’
 	// every RePast model will have at least one schedule object
 	public Schedule getSchedule() {
-		// TODO Auto-generated method stub
 		return schedule;
 	}
 
 	// called when the button with the two curved arrows is pressed
 	public void setup() {
-		// TODO Auto-generated method stub
 		rabbitsGrassSpace = null;
 		rabbitList = new ArrayList();
 		if (displaySurface != null){
