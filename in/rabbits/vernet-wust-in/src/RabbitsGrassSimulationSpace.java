@@ -89,6 +89,10 @@ public class RabbitsGrassSimulationSpace {
         return false;
     }
 
+    public void addGrass(){
+
+    }
+
     public int removeGrassAt(int x, int y){
         if(isGrassCellOccupied(x, y)){
             grassSpace.putObjectAt(x, y, 0);

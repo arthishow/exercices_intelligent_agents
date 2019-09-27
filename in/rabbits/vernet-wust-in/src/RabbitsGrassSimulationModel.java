@@ -23,6 +23,7 @@ import uchicago.src.sim.util.SimUtilities;
 
 public class RabbitsGrassSimulationModel extends SimModelImpl {
 
+	private static final int RABBIT_MIN_ENERGY = 0;
 	private static final int GRID_SIZE = 20;
 	private static final int NUM_INIT_RABBITS = 20;
 	private static final int NUM_INIT_GRASS = 20;
@@ -77,12 +78,27 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 
 	private int reapDeadRabbits(){
 		int count = 0;
-		for(int i = (rabbitList.size() - 1); i >= 0 ; i--){
-			RabbitsGrassSimulationAgent rabbit = rabbitList.get(i);
-			if(rabbit.getEnergy() < 1){
+		for(RabbitsGrassSimulationAgent rabbit : rabbitList){
+			if(rabbit.getEnergy() == RABBIT_MIN_ENERGY){
 				rabbitsGrassSpace.removeRabbitAt(rabbit.getX(), rabbit.getY());
-				rabbitList.remove(i);
+				rabbitList.remove(rabbit);
 				count++;
+			}
+		}
+		return count;
+	}
+
+	private int duplicateRabbits(){
+		int count = 0;
+		for(RabbitsGrassSimulationAgent rabbit : rabbitList){
+			if(rabbit.getEnergy() == BIRTH_THRESHOLD){
+				RabbitsGrassSimulationAgent rabbit1 = new RabbitsGrassSimulationAgent(RabbitInitEnergy);
+				RabbitsGrassSimulationAgent rabbit2 = new RabbitsGrassSimulationAgent(RabbitInitEnergy);
+				rabbitsGrassSpace.addRabbit(rabbit1);
+				rabbitsGrassSpace.addRabbit(rabbit2);
+				rabbitList.add(rabbit1);
+				rabbitList.add(rabbit2);
+				count += 2;
 			}
 		}
 		return count;
@@ -99,6 +115,7 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 				}
 
 				reapDeadRabbits();
+				duplicateRabbits();
 				displaySurface.updateDisplay();
 			}
 		}
@@ -113,6 +130,13 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 
 		schedule.scheduleActionAtInterval(1, new RabbitCountLiving());
 
+		class GrassGrowth extends BasicAction {
+			public void execute() {
+				rabbitsGrassSpace.spreadGrass(GrassGrowthRate);
+			}
+		}
+
+		schedule.scheduleActionAtEnd(new GrassGrowth());
 	}
 
 	private void buildDisplay(){

@@ -18,7 +18,6 @@ public class RabbitsGrassSimulationAgent implements Drawable {
 
 	private enum Direction {N, S, W, E};
 
-	private static final int RABBIT_MIN_ENERGY = 0;
 	private static int IDNumber = 0;
 
 	private int x;
