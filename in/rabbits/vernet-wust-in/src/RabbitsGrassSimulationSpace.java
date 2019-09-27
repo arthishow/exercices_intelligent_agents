@@ -8,6 +8,7 @@ import uchicago.src.sim.space.Object2DTorus;
 public class RabbitsGrassSimulationSpace {
 
     private static final int MAX_NUM_TRY = 10;
+    private static final int GRASS_ENERGY = 10;
 
     private Object2DTorus grassSpace;
     private Object2DTorus rabbitSpace;
@@ -64,12 +65,36 @@ public class RabbitsGrassSimulationSpace {
             int y = (int)(Math.random()*(rabbitSpace.getSizeY()));
             if(!isRabbitCellOccupied(x,y)){
                 rabbitSpace.putObjectAt(x, y, rabbit);
-                rabbit.setXY(x,y);
+                rabbit.setXY(x, y);
+                rabbit.setRabbitsGrassSpace(this);
                 return true;
             }
             count++;
         }
         return false;
+    }
+
+    public void removeRabbitAt(int x, int y){
+        rabbitSpace.putObjectAt(x, y, null);
+    }
+
+    public boolean moveRabbitAt(int x, int y, int newX, int newY){
+        if(!isRabbitCellOccupied(newX, newY)){
+            RabbitsGrassSimulationAgent rabbit = (RabbitsGrassSimulationAgent)rabbitSpace.getObjectAt(x, y);
+            removeRabbitAt(x,y);
+            rabbit.setXY(newX, newY);
+            rabbitSpace.putObjectAt(newX, newY, rabbit);
+            return true;
+        }
+        return false;
+    }
+
+    public int removeGrassAt(int x, int y){
+        if(isGrassCellOccupied(x, y)){
+            grassSpace.putObjectAt(x, y, 0);
+            return GRASS_ENERGY;
+        }
+        return 0;
     }
 
     public Object2DTorus getCurrentGrassSpace(){
