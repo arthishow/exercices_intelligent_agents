@@ -7,6 +7,8 @@ import uchicago.src.sim.space.Object2DTorus;
 
 public class RabbitsGrassSimulationSpace {
 
+    private static final int MAX_NUM_TRY = 10;
+
     private Object2DTorus grassSpace;
     private Object2DTorus rabbitSpace;
 
@@ -21,56 +23,61 @@ public class RabbitsGrassSimulationSpace {
         }
     }
 
-    // TODO
-    public void spreadGrass(int grass){
+    public boolean spreadGrass(int grass){
+
+        int countLimit = MAX_NUM_TRY * grassSpace.getSizeX() * grassSpace.getSizeY();
+        int numGrass = 0;
 
         for(int i = 0; i < grass; i++){
-            // Choose coordinates
-            int x = (int)(Math.random()*(grassSpace.getSizeX()));
-            int y = (int)(Math.random()*(grassSpace.getSizeY()));
+            int count = 0;
+            while(count < countLimit) {
+                int x = (int) (Math.random() * (grassSpace.getSizeX()));
+                int y = (int) (Math.random() * (grassSpace.getSizeY()));
 
-            // Get the value of the object at those coordinates
-            int I;
-            if(grassSpace.getObjectAt(x,y)!= null){
-                I = ((Integer)grassSpace.getObjectAt(x,y)).intValue();
-            } else {
-                I = 0;
+                if(!isGrassCellOccupied(x, y)) {
+                    grassSpace.putObjectAt(x, y, 1);
+                    count = countLimit;
+                    numGrass++;
+                } else {
+                    count++;
+                }
             }
-            // Replace the Integer object with another one with the new value
-            grassSpace.putObjectAt(x,y,new Integer(1));
         }
+        return numGrass == grass;
     }
 
-    public boolean isGrassCellOccupied(int x, int y){
-        if(grassSpace.getObjectAt(x, y)!=null) return true;
-        return false;
+    private boolean isGrassCellOccupied(int x, int y){
+        return grassSpace.getValueAt(x, y) == 1;
     }
 
-    public boolean isRabbitCellOccupied(int x, int y){
-        if(rabbitSpace.getObjectAt(x, y)!=null) return true;
-        return false;
+    private boolean isRabbitCellOccupied(int x, int y){
+        return rabbitSpace.getObjectAt(x, y) != null;
     }
 
-    public boolean addAgent(RabbitsGrassSimulationAgent agent){
+    public boolean addRabbit(RabbitsGrassSimulationAgent rabbit){
         boolean retVal = false;
         int count = 0;
-        int countLimit = 10 * rabbitSpace.getSizeX() * rabbitSpace.getSizeY();
+        int countLimit = MAX_NUM_TRY * rabbitSpace.getSizeX() * rabbitSpace.getSizeY();
 
-        while((retVal==false) && (count < countLimit)){
+        while(count < countLimit){
             int x = (int)(Math.random()*(rabbitSpace.getSizeX()));
             int y = (int)(Math.random()*(rabbitSpace.getSizeY()));
-            if(isRabbitCellOccupied(x,y) == false){
-                rabbitSpace.putObjectAt(x,y,agent);
-                //agent.setXY(x,y);
-                retVal = true;
+            if(!isRabbitCellOccupied(x,y)){
+                rabbitSpace.putObjectAt(x, y, rabbit);
+                rabbit.setXY(x,y);
+                return true;
             }
             count++;
         }
-        return retVal;
+        return false;
     }
 
     public Object2DTorus getCurrentGrassSpace(){
         return grassSpace;
+    }
+
+    public Object2DTorus getCurrentRabbitSpace(){
+        return rabbitSpace;
     }
 
 }

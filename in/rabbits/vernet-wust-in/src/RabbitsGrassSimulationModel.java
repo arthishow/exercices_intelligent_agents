@@ -6,6 +6,7 @@ import uchicago.src.sim.engine.SimModelImpl;
 import uchicago.src.sim.engine.SimInit;
 import uchicago.src.sim.gui.DisplaySurface;
 import uchicago.src.sim.gui.ColorMap;
+import uchicago.src.sim.gui.Object2DDisplay;
 import uchicago.src.sim.gui.Value2DDisplay;
 
 /**
@@ -29,14 +30,14 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 
 	private Schedule schedule;
 	private RabbitsGrassSimulationSpace rabbitsGrassSpace;
-	private ArrayList rabbitList;
+	private ArrayList<RabbitsGrassSimulationAgent> rabbitList;
 	private DisplaySurface displaySurface;
 	private int gridSize = GRID_SIZE;
 	private int numInitRabbits = NUM_INIT_RABBITS;
 	private int numInitGrass = NUM_INIT_GRASS;
 	private int rabbitInitEnergy = RABBIT_INIT_ENERGY;
-	private double grassGrowthRate = GRASS_GROWTH_RATE;
-	private double birthThreshold = BIRTH_THRESHOLD;
+	private int grassGrowthRate = GRASS_GROWTH_RATE;
+	private int birthThreshold = BIRTH_THRESHOLD;
 
 	public static void main(String[] args) {
 
@@ -69,11 +70,16 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		for(int i = 0; i < numInitRabbits; i++){
 			addNewRabbit();
 		}
+
+		for (RabbitsGrassSimulationAgent rabbit : rabbitList) {
+			rabbit.report();
+		}
 	}
 
 	private void addNewRabbit(){
 		RabbitsGrassSimulationAgent rabbit = new RabbitsGrassSimulationAgent(rabbitInitEnergy);
 		rabbitList.add(rabbit);
+		rabbitsGrassSpace.addRabbit(rabbit);
 	}
 
 	private void buildSchedule(){
@@ -88,7 +94,12 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		map.mapColor(1, Color.green);
 
 		Value2DDisplay displayGrass = new Value2DDisplay(rabbitsGrassSpace.getCurrentGrassSpace(), map);
-		displaySurface.addDisplayable(displayGrass, "Money");
+		Object2DDisplay displayRabbits = new Object2DDisplay(rabbitsGrassSpace.getCurrentRabbitSpace());
+
+		displayRabbits.setObjectList(rabbitList);
+
+		displaySurface.addDisplayable(displayGrass, "Grass");
+		displaySurface.addDisplayable(displayRabbits, "Rabbits");
 	}
 
 	// returns an array of String variables, each one listing the name of a particular parameter
