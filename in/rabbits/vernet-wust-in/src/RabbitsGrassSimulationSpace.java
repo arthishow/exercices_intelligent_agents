@@ -8,14 +8,15 @@ import uchicago.src.sim.space.Object2DTorus;
 public class RabbitsGrassSimulationSpace {
 
     private static final int MAX_NUM_TRY = 10;
-    private static final int GRASS_ENERGY = 10;
 
     private Object2DTorus grassSpace;
     private Object2DTorus rabbitSpace;
+    private int grassEnergy;
 
-    public RabbitsGrassSimulationSpace(int xSize, int ySize){
+    public RabbitsGrassSimulationSpace(int xSize, int ySize, int grassEnergy){
         grassSpace = new Object2DTorus(xSize, ySize);
         rabbitSpace = new Object2DTorus(xSize, ySize);
+        this.grassEnergy = grassEnergy;
 
         for(int i = 0; i < xSize; i++){
             for(int j = 0; j < ySize; j++){
@@ -44,6 +45,8 @@ public class RabbitsGrassSimulationSpace {
                 }
             }
         }
+        System.out.println(numGrass + " grasses have grown.");
+
         return numGrass == grass;
     }
 
@@ -89,14 +92,10 @@ public class RabbitsGrassSimulationSpace {
         return false;
     }
 
-    public void addGrass(){
-
-    }
-
     public int removeGrassAt(int x, int y){
         if(isGrassCellOccupied(x, y)){
             grassSpace.putObjectAt(x, y, 0);
-            return GRASS_ENERGY;
+            return grassEnergy;
         }
         return 0;
     }
