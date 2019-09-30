@@ -45,7 +45,6 @@ public class RabbitsGrassSimulationSpace {
                 }
             }
         }
-        System.out.println(numGrass + " grasses have grown.");
 
         return numGrass == grass;
     }

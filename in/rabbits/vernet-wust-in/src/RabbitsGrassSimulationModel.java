@@ -34,6 +34,7 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	private static final int BIRTH_THRESHOLD = 30;
 	private static final int RABBIT_INIT_ENERGY = 20;
 	private static final int GRASS_ENERGY = 25;
+	private static final boolean DEBUG = false;
 
 	private Schedule schedule;
 	private RabbitsGrassSimulationSpace rabbitsGrassSpace;
@@ -126,7 +127,9 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 				SimUtilities.shuffle(rabbitList);
 				for(RabbitsGrassSimulationAgent rabbit: rabbitList){
 					rabbit.step();
-					rabbit.report();
+					if(DEBUG) {
+						rabbit.report();
+					}
 				}
 				reapDeadRabbits();
 
@@ -165,8 +168,8 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 
 		displayRabbits.setObjectList(rabbitList);
 
-		displaySurface.addDisplayableProbeable(displayGrass, "Grass");
-		displaySurface.addDisplayableProbeable(displayRabbits, "Rabbits");
+		displaySurface.addDisplayable(displayGrass, "Grass");
+		displaySurface.addDisplayable(displayRabbits, "Rabbits");
 
 		numRabbits.addSequence("Rabbits in Space", new rabbitsInSpace());
 	}
@@ -199,7 +202,9 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 			}
 		}
 
-		System.out.println(count + " rabbits have died of exhaustion.");
+		if(DEBUG){
+			System.out.println(count + " rabbits have died of exhaustion.");
+		}
 		return count;
 	}
 
@@ -207,9 +212,7 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		int count = 0;
 		for(RabbitsGrassSimulationAgent rabbit : new ArrayList<>(rabbitList)){
 			if(rabbit.getEnergy() >= BIRTH_THRESHOLD){
-				rabbitsGrassSpace.removeRabbitAt(rabbit.getX(), rabbit.getY());
-				rabbitList.remove(rabbit);
-				count += 2;
+				count++;
 			}
 		}
 
@@ -217,7 +220,9 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 			addNewRabbit();
 		}
 
-		System.out.println(count + " rabbits were born.");
+		if(DEBUG) {
+			System.out.println(count + " rabbits were born.");
+		}
 
 		return count;
 	}
@@ -250,7 +255,9 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 			if(rabbit.getEnergy() > RABBIT_MIN_ENERGY) livingRabbits++;
 		}
 
-		System.out.println("Number of living rabbits is: " + livingRabbits);
+		if(DEBUG) {
+			System.out.println("Number of living rabbits is: " + livingRabbits);
+		}
 
 		return livingRabbits;
 	}
