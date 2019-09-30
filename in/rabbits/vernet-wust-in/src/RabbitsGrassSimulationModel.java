@@ -10,6 +10,9 @@ import uchicago.src.sim.gui.ColorMap;
 import uchicago.src.sim.gui.Object2DDisplay;
 import uchicago.src.sim.gui.Value2DDisplay;
 import uchicago.src.sim.util.SimUtilities;
+import uchicago.src.sim.analysis.DataSource;
+import uchicago.src.sim.analysis.OpenSequenceGraph;
+import uchicago.src.sim.analysis.Sequence;
 
 /**
  * Class that implements the simulation model for the rabbits grass
@@ -36,6 +39,8 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	private RabbitsGrassSimulationSpace rabbitsGrassSpace;
 	private ArrayList<RabbitsGrassSimulationAgent> rabbitList;
 	private DisplaySurface displaySurface;
+	private OpenSequenceGraph numRabbits;
+
 	private int GridSize = GRID_SIZE;
 	private int NumInitRabbits = NUM_INIT_RABBITS;
 	private int NumInitGrass = NUM_INIT_GRASS;
@@ -43,6 +48,128 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	private int GrassGrowthRate = GRASS_GROWTH_RATE;
 	private int BirthThreshold = BIRTH_THRESHOLD;
 	private int GrassEnergy = GRASS_ENERGY;
+
+	class rabbitsInSpace implements DataSource, Sequence {
+
+		public Object execute() {
+			return getSValue();
+		}
+
+		public double getSValue() {
+			return countLivingRabbits();
+		}
+	}
+
+	// called when the button with the two curved arrows is pressed
+	public void setup() {
+
+		//Tear down
+		rabbitsGrassSpace = null;
+		rabbitList = new ArrayList();
+		schedule = new Schedule(1);
+
+		if (displaySurface != null){
+			displaySurface.dispose();
+		}
+		displaySurface = null;
+
+		if (numRabbits != null){
+			numRabbits.dispose();
+		}
+		numRabbits = null;
+
+		// Create Displays
+		displaySurface = new DisplaySurface(this, "Rabbits simulation");
+		numRabbits = new OpenSequenceGraph("Rabbits Simulation",this);
+		//numRabbits.setXRange(0, 100);
+		//numRabbits.setYRange(0, NumInitRabbits*10);
+		numRabbits.setAxisTitles("Timesteps", "#Rabbits");
+
+		// Register Displays
+		registerDisplaySurface("Rabbits simulation", displaySurface);
+		this.registerMediaProducer("Plot", numRabbits);
+	}
+
+	// responsible for initializing the simulation
+	public void begin() {
+		buildModel();
+		buildSchedule();
+		buildDisplay();
+		displaySurface.display();
+		numRabbits.display();
+	}
+
+	// builds initial state of model
+	private void buildModel(){
+		rabbitsGrassSpace = new RabbitsGrassSimulationSpace(GridSize, GridSize, getGrassEnergy());
+		rabbitsGrassSpace.spreadGrass(NumInitGrass);
+
+		for(int i = 0; i < NumInitRabbits; i++){
+			addNewRabbit();
+		}
+	}
+
+	// Schedule: which action are taken every simulation step
+	private void buildSchedule(){
+
+		class GrassGrowth extends BasicAction {
+			public void execute() {
+				rabbitsGrassSpace.spreadGrass(GrassGrowthRate);
+			}
+		}
+
+		schedule.scheduleActionBeginning(1, new GrassGrowth());
+
+		class RabbitStep extends BasicAction {
+			public void execute() {
+				SimUtilities.shuffle(rabbitList);
+				for(RabbitsGrassSimulationAgent rabbit: rabbitList){
+					rabbit.step();
+					rabbit.report();
+				}
+
+				reapDeadRabbits();
+				duplicateRabbits();
+				displaySurface.updateDisplay();
+			}
+		}
+
+		schedule.scheduleActionBeginning(1, new RabbitStep());
+
+		class RabbitCountLiving extends BasicAction {
+			public void execute(){
+				countLivingRabbits();
+			}
+		}
+
+		schedule.scheduleActionAtInterval(1, new RabbitCountLiving());
+
+		class PlotNumRabbits extends BasicAction {
+			public void execute(){
+				numRabbits.step();
+			}
+		}
+
+		schedule.scheduleActionAtInterval(1, new PlotNumRabbits());
+	}
+
+	// properties of displays
+	private void buildDisplay(){
+		ColorMap map = new ColorMap();
+
+		map.mapColor(0, Color.white);
+		map.mapColor(1, Color.green);
+
+		Value2DDisplay displayGrass = new Value2DDisplay(rabbitsGrassSpace.getCurrentGrassSpace(), map);
+		Object2DDisplay displayRabbits = new Object2DDisplay(rabbitsGrassSpace.getCurrentRabbitSpace());
+
+		displayRabbits.setObjectList(rabbitList);
+
+		displaySurface.addDisplayableProbeable(displayGrass, "Grass");
+		displaySurface.addDisplayableProbeable(displayRabbits, "Rabbits");
+
+		numRabbits.addSequence("Rabbits in Space", new rabbitsInSpace());
+	}
 
 	public static void main(String[] args) {
 		SimInit init = new SimInit();
@@ -53,23 +180,6 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		else
 			init.loadModel(model, args[0], Boolean.parseBoolean(args[1]));
 
-	}
-
-	// responsible for initializing the simulation
-	public void begin() {
-		buildModel();
-		buildSchedule();
-		buildDisplay();
-		displaySurface.display();
-	}
-
-	private void buildModel(){
-		rabbitsGrassSpace = new RabbitsGrassSimulationSpace(GridSize, GridSize, getGrassEnergy());
-		rabbitsGrassSpace.spreadGrass(NumInitGrass);
-
-		for(int i = 0; i < NumInitRabbits; i++){
-			addNewRabbit();
-		}
 	}
 
 	private void addNewRabbit(){
@@ -111,56 +221,6 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		return count;
 	}
 
-	private void buildSchedule(){
-
-		class GrassGrowth extends BasicAction {
-			public void execute() {
-				rabbitsGrassSpace.spreadGrass(GrassGrowthRate);
-			}
-		}
-
-		schedule.scheduleActionBeginning(2, new GrassGrowth());
-
-		class RabbitStep extends BasicAction {
-			public void execute() {
-				SimUtilities.shuffle(rabbitList);
-				for(RabbitsGrassSimulationAgent rabbit: rabbitList){
-					rabbit.step();
-					rabbit.report();
-				}
-
-				reapDeadRabbits();
-				duplicateRabbits();
-				displaySurface.updateDisplay();
-			}
-		}
-
-		schedule.scheduleActionBeginning(1, new RabbitStep());
-
-		class RabbitCountLiving extends BasicAction {
-			public void execute(){
-				countLivingRabbits();
-			}
-		}
-
-		schedule.scheduleActionAtInterval(1, new RabbitCountLiving());
-	}
-
-	private void buildDisplay(){
-		ColorMap map = new ColorMap();
-
-		map.mapColor(0, Color.white);
-		map.mapColor(1, Color.green);
-
-		Value2DDisplay displayGrass = new Value2DDisplay(rabbitsGrassSpace.getCurrentGrassSpace(), map);
-		Object2DDisplay displayRabbits = new Object2DDisplay(rabbitsGrassSpace.getCurrentRabbitSpace());
-
-		displayRabbits.setObjectList(rabbitList);
-
-		displaySurface.addDisplayableProbeable(displayGrass, "Grass");
-		displaySurface.addDisplayableProbeable(displayRabbits, "Rabbits");
-	}
-
 	// returns an array of String variables, each one listing the name of a particular parameter
 	// that you want to be available to vary using the RePast control panel
 	public String[] getInitParam() {
@@ -182,20 +242,7 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		return schedule;
 	}
 
-	// called when the button with the two curved arrows is pressed
-	public void setup() {
-		rabbitsGrassSpace = null;
-		rabbitList = new ArrayList();
-		if (displaySurface != null){
-			displaySurface.dispose();
-		}
-		displaySurface = null;
-		displaySurface = new DisplaySurface(this, "Rabbits simulation");
-		registerDisplaySurface("Rabbits simulation", displaySurface);
-
-		schedule = new Schedule(1);
-	}
-
+	// returns the number of living rabbits
 	private int countLivingRabbits(){
 		int livingRabbits = 0;
 		for(RabbitsGrassSimulationAgent rabbit: rabbitList){
