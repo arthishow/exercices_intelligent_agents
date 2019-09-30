@@ -40,6 +40,8 @@ public class RabbitsGrassSimulationAgent implements Drawable {
 		return "R-" + ID;
 	}
 
+	public Direction getDirection(){return this.direction;}
+
 	private int getXDirection(){
 		switch(direction){
 			case E:
@@ -91,6 +93,8 @@ public class RabbitsGrassSimulationAgent implements Drawable {
 	}
 
 	private boolean tryMove(int newX, int newY){
+		newX = rabbitsGrassSpace.getCurrentRabbitSpace().xnorm(newX);
+		newY = rabbitsGrassSpace.getCurrentRabbitSpace().xnorm(newY);
 		return rabbitsGrassSpace.moveRabbitAt(x, y, newX, newY);
 	}
 
@@ -135,7 +139,7 @@ public class RabbitsGrassSimulationAgent implements Drawable {
 				" at (" +
 				x + ", " + y +
 				") has " +
-				getEnergy() + " energy.");
+				getEnergy() + " energy and is going " + getDirection() + ".");
 	}
 
 }

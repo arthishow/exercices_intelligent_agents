@@ -28,12 +28,12 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 
 	private static final int RABBIT_MIN_ENERGY = 0;
 	private static final int GRID_SIZE = 20;
-	private static final int NUM_INIT_RABBITS = 20;
-	private static final int NUM_INIT_GRASS = 20;
-	private static final int GRASS_GROWTH_RATE = 20;
-	private static final int BIRTH_THRESHOLD = 20;
+	private static final int NUM_INIT_RABBITS = 1;
+	private static final int NUM_INIT_GRASS = 40;
+	private static final int GRASS_GROWTH_RATE = 30;
+	private static final int BIRTH_THRESHOLD = 30;
 	private static final int RABBIT_INIT_ENERGY = 20;
-	private static final int GRASS_ENERGY = 20;
+	private static final int GRASS_ENERGY = 25;
 
 	private Schedule schedule;
 	private RabbitsGrassSimulationSpace rabbitsGrassSpace;
@@ -118,23 +118,23 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 			}
 		}
 
-		schedule.scheduleActionBeginning(1, new GrassGrowth());
+		schedule.scheduleActionBeginning(2, new GrassGrowth());
 
 		class RabbitStep extends BasicAction {
 			public void execute() {
+				duplicateRabbits();
 				SimUtilities.shuffle(rabbitList);
 				for(RabbitsGrassSimulationAgent rabbit: rabbitList){
 					rabbit.step();
 					rabbit.report();
 				}
-
 				reapDeadRabbits();
-				duplicateRabbits();
+
 				displaySurface.updateDisplay();
 			}
 		}
 
-		schedule.scheduleActionBeginning(1, new RabbitStep());
+		schedule.scheduleActionBeginning(2, new RabbitStep());
 
 		class RabbitCountLiving extends BasicAction {
 			public void execute(){
@@ -142,7 +142,7 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 			}
 		}
 
-		schedule.scheduleActionAtInterval(1, new RabbitCountLiving());
+		schedule.scheduleActionBeginning(1, new RabbitCountLiving());
 
 		class PlotNumRabbits extends BasicAction {
 			public void execute(){
@@ -207,6 +207,7 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		int count = 0;
 		for(RabbitsGrassSimulationAgent rabbit : new ArrayList<>(rabbitList)){
 			if(rabbit.getEnergy() >= BIRTH_THRESHOLD){
+				rabbitsGrassSpace.removeRabbitAt(rabbit.getX(), rabbit.getY());
 				rabbitList.remove(rabbit);
 				count += 2;
 			}
