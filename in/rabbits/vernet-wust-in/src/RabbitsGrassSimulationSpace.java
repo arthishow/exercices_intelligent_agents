@@ -30,10 +30,14 @@ public class RabbitsGrassSimulationSpace {
 
     public boolean spreadGrass(int grass){
 
+        System.out.println("spreading grass");
         List<List<Integer>> coordinates = getGrassFreeCellsCoordinates();
+        System.out.println("cordinates size = " + coordinates.get(0).size());
         int numGrass = Math.min(coordinates.get(0).size(), grass);
-        for(int i = 0; i < grass; i++){
+        for(int i = 0; i < numGrass; i++){
             int n = (int) (Math.random() * coordinates.get(0).size());
+            System.out.println("cordinates size in loop = " + coordinates.get(0).size());
+            System.out.println("n = " + n);
             int x = coordinates.get(0).get(n);
             int y = coordinates.get(1).get(n);
             coordinates.get(0).remove(n);

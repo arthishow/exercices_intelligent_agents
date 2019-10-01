@@ -129,6 +129,10 @@ public class RabbitsGrassSimulationAgent implements Drawable {
 		return energy;
 	}
 
+	public void setEnergy(int newEnergy){
+		energy = newEnergy;
+	}
+
 	public void setXY(int newX, int newY){
 		x = newX;
 		y = newY;

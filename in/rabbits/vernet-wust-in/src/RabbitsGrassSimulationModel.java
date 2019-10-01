@@ -30,10 +30,10 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	private static final int GRID_SIZE = 20;
 	private static final int NUM_INIT_RABBITS = 1;
 	private static final int NUM_INIT_GRASS = 40;
-	private static final int GRASS_GROWTH_RATE = 30;
-	private static final int BIRTH_THRESHOLD = 30;
-	private static final int RABBIT_INIT_ENERGY = 20;
-	private static final int GRASS_ENERGY = 25;
+	private static final int GRASS_GROWTH_RATE = 10;
+	private static final int BIRTH_THRESHOLD = 50;
+	private static final int RABBIT_INIT_ENERGY = 10;
+	private static final int GRASS_ENERGY = 20;
 	private static final boolean DEBUG = false;
 
 	private Schedule schedule;
@@ -203,10 +203,12 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	}
 
 	private int duplicateRabbits(){
-		int count = 0;
+		int count = 0, energy =0;
 		for(RabbitsGrassSimulationAgent rabbit : new ArrayList<>(rabbitList)){
-			if(rabbit.getEnergy() >= BirthThreshold){
+			energy = rabbit.getEnergy();
+			if(energy >= BirthThreshold){
 				count++;
+				rabbit.setEnergy(energy-BirthThreshold);
 			}
 		}
 
