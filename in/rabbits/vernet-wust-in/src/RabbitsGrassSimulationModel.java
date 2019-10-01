@@ -20,7 +20,7 @@ import uchicago.src.sim.analysis.Sequence;
  * order to run Repast simulation. It manages the entire RePast
  * environment and the simulation.
  *
- * @author
+ * @author Arthur Vernet and Matthias Wüst
  */
 
 
