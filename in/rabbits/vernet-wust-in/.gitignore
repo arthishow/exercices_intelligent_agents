@@ -5,6 +5,7 @@
 .classpath
 .settings
 *.iml
+/src/META-INF
 
 # Compiled class file
 *.class
