@@ -40,7 +40,7 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	private RabbitsGrassSimulationSpace rabbitsGrassSpace;
 	private ArrayList<RabbitsGrassSimulationAgent> rabbitList;
 	private DisplaySurface displaySurface;
-	private OpenSequenceGraph numRabbits;
+	private OpenSequenceGraph plot;
 
 	private int GridSize = GRID_SIZE;
 	private int NumInitRabbits = NUM_INIT_RABBITS;
@@ -61,6 +61,13 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		}
 	}
 
+	class grassPatchesInSpace implements DataSource, Sequence {
+
+		public Object execute() { return getSValue(); }
+
+		public double getSValue() { return countGrassPatches(); }
+	}
+
 	// called when the button with the two curved arrows is pressed
 	public void setup() {
 
@@ -74,21 +81,20 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		}
 		displaySurface = null;
 
-		if (numRabbits != null){
-			numRabbits.dispose();
+		if (plot != null){
+			plot.dispose();
 		}
-		numRabbits = null;
+		plot = null;
 
 		// Create Displays
 		displaySurface = new DisplaySurface(this, "Rabbits simulation");
-		numRabbits = new OpenSequenceGraph("Rabbits Simulation",this);
-		//numRabbits.setXRange(0, 100);
-		//numRabbits.setYRange(0, NumInitRabbits*10);
-		numRabbits.setAxisTitles("Timesteps", "#Rabbits");
+		plot = new OpenSequenceGraph("Rabbits Simulation",this);
+		plot.setAxisTitles("Timesteps", "Amount");
 
 		// Register Displays
 		registerDisplaySurface("Rabbits simulation", displaySurface);
-		this.registerMediaProducer("Plot", numRabbits);
+		this.registerMediaProducer("Population plot", plot);
+		this.registerMediaProducer("Resources plot", plot);
 	}
 
 	public void begin() {
@@ -96,7 +102,7 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		buildSchedule();
 		buildDisplay();
 		displaySurface.display();
-		numRabbits.display();
+		plot.display();
 	}
 
 	private void buildModel(){
@@ -135,13 +141,13 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 
 		schedule.scheduleActionBeginning(2, new WorldEvolution());
 
-		class PlotNumRabbits extends BasicAction {
+		class Plot extends BasicAction {
 			public void execute(){
-				numRabbits.step();
+				plot.step();
 			}
 		}
 
-		schedule.scheduleActionAtInterval(1, new PlotNumRabbits());
+		schedule.scheduleActionAtInterval(1, new Plot());
 	}
 
 	private void buildDisplay(){
@@ -158,7 +164,8 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		displaySurface.addDisplayable(displayGrass, "Grass");
 		displaySurface.addDisplayable(displayRabbits, "Rabbits");
 
-		numRabbits.addSequence("Rabbits in Space", new rabbitsInSpace());
+		plot.addSequence("Rabbits", new rabbitsInSpace());
+		plot.addSequence("Grass", new grassPatchesInSpace());
 	}
 
 	public static void main(String[] args) {
