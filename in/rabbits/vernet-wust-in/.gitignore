@@ -6,6 +6,7 @@
 .settings
 *.iml
 /out/META-INF
+/src/META-INF
 
 # Compiled class file
 *.class
