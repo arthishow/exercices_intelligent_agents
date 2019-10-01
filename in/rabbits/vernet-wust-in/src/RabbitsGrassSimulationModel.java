@@ -91,7 +91,6 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		this.registerMediaProducer("Plot", numRabbits);
 	}
 
-	// responsible for initializing the simulation
 	public void begin() {
 		buildModel();
 		buildSchedule();
@@ -100,9 +99,8 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		numRabbits.display();
 	}
 
-	// builds initial state of model
 	private void buildModel(){
-		rabbitsGrassSpace = new RabbitsGrassSimulationSpace(GridSize, GridSize, getGrassEnergy());
+		rabbitsGrassSpace = new RabbitsGrassSimulationSpace(GridSize, GridSize, GrassEnergy);
 		rabbitsGrassSpace.spreadGrass(NumInitGrass);
 
 		for(int i = 0; i < NumInitRabbits; i++){
@@ -110,19 +108,13 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		}
 	}
 
-	// Schedule: which action are taken every simulation step
 	private void buildSchedule(){
 
-		class GrassGrowth extends BasicAction {
+		class WorldEvolution extends BasicAction {
 			public void execute() {
+
 				rabbitsGrassSpace.spreadGrass(GrassGrowthRate);
-			}
-		}
 
-		schedule.scheduleActionBeginning(2, new GrassGrowth());
-
-		class RabbitStep extends BasicAction {
-			public void execute() {
 				duplicateRabbits();
 				SimUtilities.shuffle(rabbitList);
 				for(RabbitsGrassSimulationAgent rabbit: rabbitList){
@@ -134,18 +126,14 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 				reapDeadRabbits();
 
 				displaySurface.updateDisplay();
-			}
-		}
 
-		schedule.scheduleActionBeginning(2, new RabbitStep());
-
-		class RabbitCountLiving extends BasicAction {
-			public void execute(){
 				countLivingRabbits();
+				countGrassPatches();
+
 			}
 		}
 
-		schedule.scheduleActionBeginning(1, new RabbitCountLiving());
+		schedule.scheduleActionBeginning(2, new WorldEvolution());
 
 		class PlotNumRabbits extends BasicAction {
 			public void execute(){
@@ -156,7 +144,6 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		schedule.scheduleActionAtInterval(1, new PlotNumRabbits());
 	}
 
-	// properties of displays
 	private void buildDisplay(){
 		ColorMap map = new ColorMap();
 
@@ -211,7 +198,7 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 	private int duplicateRabbits(){
 		int count = 0;
 		for(RabbitsGrassSimulationAgent rabbit : new ArrayList<>(rabbitList)){
-			if(rabbit.getEnergy() >= BIRTH_THRESHOLD){
+			if(rabbit.getEnergy() >= BirthThreshold){
 				count++;
 			}
 		}
@@ -227,8 +214,6 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		return count;
 	}
 
-	// returns an array of String variables, each one listing the name of a particular parameter
-	// that you want to be available to vary using the RePast control panel
 	public String[] getInitParam() {
 		// Parameters to be set by users via the Repast UI slider bar
 		// Do "not" modify the parameters names provided in the skeleton code, you can add more if you want
@@ -236,19 +221,14 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		return params;
 	}
 
-	// returns the name of the simulation model being run
-	// this name appears in some of the RePast toolbars (though not the one shown)
 	public String getName() {
 		return "Rabbits simulation";
 	}
 
-	// return an object of type ‘Schedule.’
-	// every RePast model will have at least one schedule object
 	public Schedule getSchedule() {
 		return schedule;
 	}
 
-	// returns the number of living rabbits
 	private int countLivingRabbits(){
 		int livingRabbits = 0;
 		for(RabbitsGrassSimulationAgent rabbit: rabbitList){
@@ -260,6 +240,17 @@ public class RabbitsGrassSimulationModel extends SimModelImpl {
 		}
 
 		return livingRabbits;
+	}
+
+	private int countGrassPatches(){
+
+		int grassPatches = GridSize * GridSize - rabbitsGrassSpace.getGrassFreeCellsCoordinates().get(0).size();
+
+		if(DEBUG) {
+			System.out.println("Number of grass patches is: " + grassPatches);
+		}
+
+		return grassPatches;
 	}
 
 	public void setSchedule(Schedule schedule) {
