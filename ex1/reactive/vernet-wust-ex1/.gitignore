@@ -1,3 +1,6 @@
+# Project specific files
+history.xml
+
 # IntelliJ IDEA files
 .DS_Store
 .idea
