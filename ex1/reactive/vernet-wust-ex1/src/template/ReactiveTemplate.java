@@ -38,7 +38,7 @@ public class ReactiveTemplate implements ReactiveBehavior {
 		this.taskDistribution = td;
 		this.topology = topology;
 		if(agent.name().equals("reactive-rla")) {
-			this.bestDecisions = computeBestDecisions(0.001);
+			this.bestDecisions = computeBestDecisions(0.01);
 		}
 	}
 
@@ -210,13 +210,14 @@ public class ReactiveTemplate implements ReactiveBehavior {
 		City startCity = state.city;
 		City endCity = decision.destinationCity;
 
+		City stepCity = startCity;
 		if(decision.pickup){
-			List<City> path = startCity.pathTo(endCity);
+			List<City> path = stepCity.pathTo(endCity);
 			double cost = 0;
 			for (City city : path) {
-				double distance = startCity.distanceTo(city);
-				cost -= distance*state.vehicle.costPerKm();
-				startCity = city;
+				double distance = stepCity.distanceTo(city);
+				cost += distance*state.vehicle.costPerKm();
+				stepCity = city;
 			}
 			return taskDistribution.reward(startCity, endCity) - cost;
 		} else {
