@@ -16,7 +16,7 @@ import logist.topology.Topology.City;
 public class ReactiveTemplate implements ReactiveBehavior {
 
 	private Random random;
-	private double pPickup;
+	private double discount;
 	private int numActions;
 	private Agent myAgent;
 	private TaskDistribution taskDistribution;
@@ -32,34 +32,67 @@ public class ReactiveTemplate implements ReactiveBehavior {
 				0.95);
 
 		this.random = new Random();
-		this.pPickup = discount;
+		this.discount = discount;
 		this.numActions = 0;
 		this.myAgent = agent;
 		this.taskDistribution = td;
 		this.topology = topology;
-		this.bestDecisions = computeBestDecisions(0.01);
+		if(agent.name().equals("reactive-rla")) {
+			this.bestDecisions = computeBestDecisions(0.001);
+		}
 	}
 
 	@Override
 	public Action act(Vehicle vehicle, Task availableTask) {
 		Action action;
 
-		State state;
-		if(availableTask == null){
-			state = new State(vehicle, vehicle.getCurrentCity(), null);
-		} else {
-			state = new State(vehicle, vehicle.getCurrentCity(), availableTask.deliveryCity);
-		}
-		Decision decision = bestDecisions.get(state);
+		String name = myAgent.name();
 
-		if(decision.pickup){
-			action = new Pickup(availableTask);
+		if(name.equals("reactive-rla")) {
+			State state;
+			if (availableTask == null) {
+				state = new State(vehicle, vehicle.getCurrentCity(), null);
+			} else {
+				state = new State(vehicle, vehicle.getCurrentCity(), availableTask.deliveryCity);
+			}
+			Decision decision = bestDecisions.get(state);
+
+			if (decision.pickup) {
+				action = new Pickup(availableTask);
+			} else {
+				action = new Move(decision.destinationCity);
+			}
+		} else if(name.equals("reactive-random")){
+			if (availableTask == null || random.nextDouble() > discount) {
+				City currentCity = vehicle.getCurrentCity();
+				action = new Move(currentCity.randomNeighbor(random));
+			} else {
+				action = new Pickup(availableTask);
+			}
 		} else {
-			action = new Move(decision.destinationCity);
+			if (availableTask == null) {
+				City currentCity = vehicle.getCurrentCity();
+				double maxReward = 0;
+				City nextCity = null;
+				for(City city: currentCity.neighbors()){
+					double reward = 0;
+					for(City city2: topology.cities()){
+						reward += taskDistribution.probability(city, city2)*taskDistribution.reward(city, city2);
+					}
+					// goes to the neighboring city with the highest expected reward
+					if(reward > maxReward){
+						maxReward = reward;
+						nextCity = city;
+					}
+				}
+				action = new Move(nextCity);
+			} else {
+				action = new Pickup(availableTask);
+			}
 		}
 
 		if (numActions >= 1) {
-			System.out.println("The total profit after "+numActions+" actions is "+myAgent.getTotalProfit()+" (average profit: "+(myAgent.getTotalProfit() / (double)numActions)+")");
+			System.out.println("The total profit for "+name+" after "+numActions+" actions is "+myAgent.getTotalProfit()+" (average profit: "+(myAgent.getTotalProfit() / (double)numActions)+")");
 		}
 		numActions++;
 
@@ -96,9 +129,6 @@ public class ReactiveTemplate implements ReactiveBehavior {
 				if(state.taskDestinationCity != null && state.taskDestinationCity.equals(city)) {
 					decisions.add(new Decision(city, true));
 				}
-				if(state.taskDestinationCity == null && state.city.name.equals("Brest")){
-					int a = 0;
-				}
 				if(state.city.hasNeighbor(city)) {
 					decisions.add(new Decision(city, false));
 				}
@@ -129,6 +159,7 @@ public class ReactiveTemplate implements ReactiveBehavior {
 		Map<State, Double> vValues = new HashMap<>();
 		Map<State, Decision> bestDecisions = new HashMap<>();
 
+		int count = 0;
 		double difference;
 		Map<State, Double> oldVValues;
 		do {
@@ -140,7 +171,7 @@ public class ReactiveTemplate implements ReactiveBehavior {
 						transitionSum += transitionProbability(state, decision, state2) * vValues.getOrDefault(state2, 0.0);
 					}
 					StateDecisionKey sdk = new StateDecisionKey(state, decision);
-					qValues.put(sdk, rewards.get(sdk) + pPickup*transitionSum);
+					qValues.put(sdk, rewards.get(sdk) + discount*transitionSum);
 				}
 
 				double max = 0;
@@ -155,7 +186,10 @@ public class ReactiveTemplate implements ReactiveBehavior {
 				vValues.put(bestSDK.state, max);
 			}
 			difference = computeDifference(oldVValues, vValues);
+			count++;
 		} while(difference > epsilon);
+
+		System.out.println("Value iteration converged after "+count+" iterations.");
 
 		return bestDecisions;
 	}
