@@ -1,6 +1,6 @@
 # Out
-/out
-/src/META-INF
+/out/*
+/src/META-INF/*
 
 # IntelliJ IDEA files
 .DS_Store
