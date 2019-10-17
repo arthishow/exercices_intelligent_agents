@@ -7,6 +7,28 @@ import java.util.*;
 
 public class BFS {
 
+    public static List<Node<State>> possibleTraversals(Tree<State> graph){
+
+        List<Node<State>> goalStates = new ArrayList<>();
+
+        List<Node<State>> Q = new ArrayList<>(graph.root);
+        Set<Node> C = new HashSet<>();
+
+        while(!Q.isEmpty()){
+            Node<State> n = Q.remove(0);
+            if(n.isFinal()){
+                goalStates.append(n);
+            } else if(!C.contains(n)){
+                C.add(n);
+                List<Node<State>> S = n.getChildren();
+                Q.addAll(S);
+            }
+        }
+
+        return goalStates;
+    }
+
+
     public List<DeliberativeTemplate.State> bfsAlgorithm(DeliberativeTemplate.State currentState, List<Task> remainingTasks, List<DeliberativeTemplate.State> goalStates){
 
         //Final list with all state transitions (= plan)
