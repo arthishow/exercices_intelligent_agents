@@ -1,0 +1,16 @@
+<component name="libraryTable">
+  <library name="lib1">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/ex2/reactive/lib/jsolver.jar!/" />
+      <root url="jar://$PROJECT_DIR$/ex2/reactive/lib/logist.jar!/" />
+      <root url="jar://$PROJECT_DIR$/ex2/reactive/lib/commons-math-1.1.jar!/" />
+      <root url="jar://$PROJECT_DIR$/ex2/reactive/lib/repast.jar!/" />
+      <root url="jar://$PROJECT_DIR$/ex2/reactive/lib/beanbowl.jar!/" />
+      <root url="jar://$PROJECT_DIR$/ex2/reactive/lib/colt.jar!/" />
+      <root url="jar://$PROJECT_DIR$/ex2/reactive/lib/plot.jar!/" />
+      <root url="jar://$PROJECT_DIR$/ex2/reactive/lib/jdom.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

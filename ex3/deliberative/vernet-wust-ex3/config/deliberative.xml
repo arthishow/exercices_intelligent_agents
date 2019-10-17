@@ -29,7 +29,7 @@
 			<!-- the first vehicle (blue) -->
 			<vehicle name="Vehicle 1">
 				<set color="#0000ff" />
-				<set home="Lausanne" />
+				<set home="Aarau" />
 				<set speed="90" />
 				<set capacity="30" />
 				<set cost-per-km="5" />

@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="vernet-wust-in">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/in/rabbits/vernet-wust-in/out/executable/vernet-wust-in.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

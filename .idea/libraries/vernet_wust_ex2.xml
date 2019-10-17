@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="vernet-wust-ex2">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/ex2/vernet-wust-ex2.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
