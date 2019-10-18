@@ -29,7 +29,8 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 	
 	/* the properties of the agent */
 	Agent agent;
-	int capacity;
+	Vehicle vehicle;
+	int capacity = 30;
 	int costPerKm;
 
 	/* the planning class */
@@ -111,10 +112,14 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 
 	    //define initial state & all possible goal states (city = delivery/pickup city, currentTasks = null, tasksLeft = 0)
         final List<Task> initialTasks = getInitialTasks(tasks);
+        List<Task> currentTasks = new LinkedList<>();
         final List<State> goalStates = evaluateGoalStates(tasks);
         int numberOfGoalStates = goalStates.size();
 
-		State initialState = new State(vehicle.getCurrentCity(), null, initialTasks);
+		State initialState = new State(vehicle.getCurrentCity(), currentTasks, initialTasks);
+
+		Node root = new Node(0, initialState, null);
+        createTree(root, initialTasks, goalStates);
 
         //BFS Algorithm
         List<State> actions = bfsAlgorithm(initialState, initialTasks, goalStates);
@@ -124,81 +129,112 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return plan;
 	}
 
-	public List<DeliberativeTemplate.State> bfsAlgorithm(DeliberativeTemplate.State currentState, List<Task> remainingTasks, List<DeliberativeTemplate.State> goalStates){
+	public void createTree(Node root, List<Task> remainingTasks, List<State> goalStates){
+
+	    int depthLvl = 0;
+        int nodeIndex = 1;
+        int totalWeight = 0;
+
+        List<City> neighbors;
+        List<State> visitedStates = new ArrayList<>();
+        List<Node> parents = new LinkedList<>();
+        List<Node> nextParents = new LinkedList<>();
+
+        //Lists with all pickup and delivery destinations
+        List<City> deliveries = new ArrayList<>(remainingTasks.size());
+        List<City> pickups = new ArrayList<>(remainingTasks.size());
+        for(int index = 0; index < remainingTasks.size(); index++){
+            Task task = remainingTasks.get(index);
+            deliveries.add(task.deliveryCity);
+            pickups.add(task.pickupCity);
+        }
+
+        System.out.println("TaskSet:");
+        System.out.println(remainingTasks.toString());
+
+        visitedStates.add(root.state);
+        parents.add(root);
+        nextParents.add(root);
+
+        //makes tree
+
+        while(nextParents.size()!=0) {
+
+            nextParents.clear();
+            depthLvl++;
+            System.out.println("Depth of Tree: " + depthLvl);
+            System.out.println("Size parents: "+ parents.size());
+
+            for (Node node : parents) {
+
+                State currentState = node.state;
+
+                //is delivery possible?
+                if (deliveries.contains(currentState.city) && currentState.currentTasks != null) {
+                    for (Task task : currentState.currentTasks) {
+                        //always make a delivery
+                        if (task.deliveryCity.equals(currentState.city)) {
+                            State nextState = new State(currentState.city, currentState.currentTasks, currentState.remainingTasks);
+                            nextState.currentTasks.remove(task);
+                            nextParents.add(addNode(nodeIndex, nextState, node, visitedStates));
+                            nodeIndex++;
+                        }
+                    }
+                }
+
+                //is pickup possible?
+                if(pickups.contains(currentState.city)) {
+                    //sum of current weights
+                    if(currentState.currentTasks != null) {
+                        for (Task task : currentState.currentTasks) {
+                            totalWeight += task.weight;
+                        }
+                    }
+
+                    Iterator<Task> iterator = currentState.remainingTasks.iterator();
+                    while (iterator.hasNext()) {
+                        Task task = iterator.next();
+                        if (task.pickupCity.equals(currentState.city) && (totalWeight + task.weight) <= capacity) {
+                            State nextState = new State(currentState.city, currentState.currentTasks, currentState.remainingTasks);
+                            nextState.remainingTasks.remove(task);
+                            //List<Task> nextCurTasks = new LinkedList<>(nextState.currentTasks.add(task));
+                            nextState.currentTasks.add(task);
+
+                            //already visited?
+                            if (!visitedStates.contains(nextState)) {
+                                nextParents.add(addNode(nodeIndex, nextState, node, visitedStates));
+                                nodeIndex++;
+                            }
+                        }
+                    }
+                }
+
+                //Search Neighbouring Cities
+                neighbors = currentState.city.neighbors();
+                for (City neighborCity : neighbors) {
+                    State nextState = new State(neighborCity, currentState.currentTasks, currentState.remainingTasks);
+                    if (!visitedStates.contains(nextState)) {
+                        nextParents.add(addNode(nodeIndex, nextState, node, visitedStates));
+                        nodeIndex++;
+                    }
+                }
+            }
+
+
+            System.out.println("Size nextParents: "+ nextParents.size());
+            for (Node node : nextParents){
+                parents.add(node);
+            }
+
+        }
+    }
+
+	public List<State> bfsAlgorithm(State currentState, List<Task> remainingTasks, List<State> goalStates){
 
 		//Final list with all state transitions (= plan)
 		Map<Integer, DeliberativeTemplate.State> nodes = new HashMap<>();
-		List<DeliberativeTemplate.State> actions = new LinkedList<>();
 
-		int depthLvl = 0;
-		int nodeIndex = 0;
-		int totalWeight = 0;
-
-		List<Topology.City> neighbors;
-
-		//Lists with all pickup and delivery destinations
-		List<Topology.City> deliveries = new ArrayList<>(remainingTasks.size());
-		List<Topology.City> pickups = new ArrayList<>(remainingTasks.size());
-
-		System.out.println("TaskSet:");
-		System.out.println(remainingTasks.toString());
-
-		for(int index = 0; index < remainingTasks.size(); index++){
-			Task task = remainingTasks.get(index);
-			deliveries.add(task.deliveryCity);
-			pickups.add(task.pickupCity);
-		}
-
-		DeliberativeTemplate.State nextState = currentState;
-
-		do {
-
-			//is delivery possible?
-			if(deliveries.contains(currentState.city)){
-				for(Task task : currentState.currentTasks){
-					//always make a delivery
-					if(task.deliveryCity.equals(currentState.city)) {
-						nextState.currentTasks.remove(task);
-						nodes.put(nodeIndex, nextState);
-						nodeIndex++;
-					}
-				}
-			}
-
-			//is pickup possible?
-			if(pickups.contains(currentState.city)){
-				for(Task task: currentState.currentTasks){
-					totalWeight += task.weight;
-				}
-				for(Task task : currentState.remainingTasks) {
-					//add all possible pickups to nodes
-					if (task.pickupCity.equals(currentState.city) && (totalWeight + task.weight) <= capacity) {
-						nextState.remainingTasks.remove(task);
-						nextState.currentTasks.add(task);
-						//already visited?
-						if(!nodes.containsValue(nextState)){
-							nodes.put(nodeIndex, nextState);
-							nodeIndex++;
-						}
-						else{
-
-						}
-					}
-				}
-			}
-
-			neighbors = currentState.city.neighbors();
-			while(neighbors.iterator().hasNext()){
-				nextState.city = neighbors.iterator().next();
-				if(!nodes.containsValue(nextState)){
-					nodes.put(nodeIndex, nextState);
-					nodeIndex++;
-				}
-			}
-
-			depthLvl++;
-
-		} while(!goalStates.contains(nextState));
+        List<DeliberativeTemplate.State> actions = new LinkedList<>();
 
 		return actions;
 	}
@@ -236,20 +272,30 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         return initialTasks;
     }
 
-	private State pickup(State currentState, List<Task> remainingTasks, int totalWeight){
+    private Node addNode(int index, State nextState, Node parent, List<State> visitedStates){
+        Node node = new Node(index, nextState, parent);
+        visitedStates.add(nextState);
+        parent.children.add(node);
+        System.out.println("Node added, index: "+ index+", City: "+ nextState.city);
+        return node;
+    }
 
-		State state = currentState;
-		//check if multiple tasks can be picked up and if the capacity would not be exceeded
-		for(Task task : currentState.remainingTasks){
-			if(task.pickupCity.equals(currentState.city) && (totalWeight + task.weight) <= capacity){
-				currentState.currentTasks.add(task);
-				return state;
-			}
-		}
-		return state;
-	}
+    private class Node {
 
-    private class State {
+	    private int index;
+        private State state;
+        private Node parent;
+        private List<Node> children;
+
+        public Node(int index, State state, Node parent) {
+            this.index = index;
+            this.state = state;
+            this.parent = parent;
+            this.children = new ArrayList<>();
+        }
+    }
+
+    public class State {
         private City city;
         private List<Task> currentTasks;
         private List<Task> remainingTasks;
@@ -260,15 +306,16 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
             this.remainingTasks = remainingTasks;
         }
 
-		//what if conditions must be met?
         @Override
         public boolean equals(Object obj) {
             if(obj != null && obj instanceof State) {
                 State s = (State)obj;
-                if(currentTasks != null && s.currentTasks != null) {
+                if((currentTasks != null && s.currentTasks != null) && (remainingTasks != null && s.remainingTasks != null)) {
+                    return city.equals(s.city) && currentTasks.equals(s.currentTasks) && remainingTasks.equals(s.remainingTasks);
+                } else if ((remainingTasks == null && s.remainingTasks == null) && (currentTasks != null && s.currentTasks != null)) {
                     return city.equals(s.city) && currentTasks.equals(s.currentTasks);
-                } else if (currentTasks == null && s.currentTasks == null){
-                    return city.equals(s.city);
+                } else if ((currentTasks == null && s.currentTasks == null) && (remainingTasks != null && s.remainingTasks != null)){
+                    return city.equals(s.city) && remainingTasks.equals(s.remainingTasks);
                 }
             }
             return false;
