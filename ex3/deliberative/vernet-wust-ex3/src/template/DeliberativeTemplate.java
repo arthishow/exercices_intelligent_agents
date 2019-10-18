@@ -229,6 +229,14 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         }
     }
 
+    private Node addNode(int index, State nextState, Node parent, List<State> visitedStates){
+        Node node = new Node(index, nextState, parent);
+        visitedStates.add(nextState);
+        parent.children.add(node);
+        System.out.println("Node added, index: "+ index+", City: "+ nextState.city);
+        return node;
+    }
+
 	public List<State> bfsAlgorithm(State currentState, List<Task> remainingTasks, List<State> goalStates){
 
 		//Final list with all state transitions (= plan)
@@ -241,7 +249,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 
 	@Override
 	public void planCancelled(TaskSet carriedTasks) {
-		
+
 		if (!carriedTasks.isEmpty()) {
 			// This cannot happen for this simple agent, but typically
 			// you will need to consider the carriedTasks when the next
@@ -270,14 +278,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
             initialTasks.add(task);
 
         return initialTasks;
-    }
-
-    private Node addNode(int index, State nextState, Node parent, List<State> visitedStates){
-        Node node = new Node(index, nextState, parent);
-        visitedStates.add(nextState);
-        parent.children.add(node);
-        System.out.println("Node added, index: "+ index+", City: "+ nextState.city);
-        return node;
     }
 
     private class Node {
