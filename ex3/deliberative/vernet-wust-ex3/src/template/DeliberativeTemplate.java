@@ -114,12 +114,32 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         final List<Task> initialTasks = getInitialTasks(tasks);
         List<Task> currentTasks = new LinkedList<>();
         final List<State> goalStates = evaluateGoalStates(tasks);
+        State initialState = new State(vehicle.getCurrentCity(), currentTasks, initialTasks);
+
         int numberOfGoalStates = goalStates.size();
 
-		State initialState = new State(vehicle.getCurrentCity(), currentTasks, initialTasks);
+        Node root = new Node(0, initialState, null);
+        List<Node> finalNodes = createTree(root, initialTasks, goalStates);
+        List<Node> goalNodes = new LinkedList<>();
 
-		Node root = new Node(0, initialState, null);
-        createTree(root, initialTasks, goalStates);
+        System.out.println("Tree Created");
+
+        for (Node node : finalNodes) {
+            for (State state : goalStates){
+                if(node.state.equals(state)){
+                    goalNodes.add(node);
+                    System.out.println("Tree Created");
+                }
+
+            }
+        }
+
+        int i = 1;
+        for (Node node : goalNodes) {
+            System.out.println("Goal Node No: "+ i);
+            System.out.println("Index: "+node.index+"City: "+node.state.city);
+            i++;
+        }
 
         //BFS Algorithm
         List<State> actions = bfsAlgorithm(initialState, initialTasks, goalStates);
@@ -129,7 +149,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 		return plan;
 	}
 
-	public void createTree(Node root, List<Task> remainingTasks, List<State> goalStates){
+	public List<Node> createTree(Node root, List<Task> remainingTasks, List<State> goalStates){
 
 	    int depthLvl = 0;
         int nodeIndex = 1;
@@ -139,6 +159,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         List<State> visitedStates = new ArrayList<>();
         List<Node> parents = new LinkedList<>();
         List<Node> nextParents = new LinkedList<>();
+        List<Node> finalNodes = new LinkedList<>();
 
         //Lists with all pickup and delivery destinations
         List<City> deliveries = new ArrayList<>(remainingTasks.size());
@@ -174,8 +195,12 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
                     for (Task task : currentState.currentTasks) {
                         //always make a delivery
                         if (task.deliveryCity.equals(currentState.city)) {
-                            State nextState = new State(currentState.city, currentState.currentTasks, currentState.remainingTasks);
-                            nextState.currentTasks.remove(task);
+
+                            List<Task> listCurrent = new ArrayList<>();
+                            listCurrent.addAll(currentState.currentTasks);
+                            listCurrent.remove(task);
+                            State nextState = new State(currentState.city, listCurrent, currentState.remainingTasks);
+
                             nextParents.add(addNode(nodeIndex, nextState, node, visitedStates));
                             nodeIndex++;
                         }
@@ -195,11 +220,13 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
                     while (iterator.hasNext()) {
                         Task task = iterator.next();
                         if (task.pickupCity.equals(currentState.city) && (totalWeight + task.weight) <= capacity) {
-                            State nextState = new State(currentState.city, currentState.currentTasks, currentState.remainingTasks);
-                            nextState.remainingTasks.remove(task);
-                            //List<Task> nextCurTasks = new LinkedList<>(nextState.currentTasks.add(task));
-                            nextState.currentTasks.add(task);
-
+                            List<Task> listCurrent = new ArrayList<>();
+                            List<Task> listRemaining = new ArrayList<>();
+                            listCurrent.addAll(currentState.currentTasks);
+                            listCurrent.add(task);
+                            listRemaining.addAll(currentState.remainingTasks);
+                            listRemaining.remove(task);
+                            State nextState = new State(currentState.city, listCurrent, listRemaining);
                             //already visited?
                             if (!visitedStates.contains(nextState)) {
                                 nextParents.add(addNode(nodeIndex, nextState, node, visitedStates));
@@ -209,7 +236,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
                     }
                 }
 
-                //Search Neighbouring Cities
+                //Visit all neighbouring cities
                 neighbors = currentState.city.neighbors();
                 for (City neighborCity : neighbors) {
                     State nextState = new State(neighborCity, currentState.currentTasks, currentState.remainingTasks);
@@ -218,15 +245,20 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
                         nodeIndex++;
                     }
                 }
-            }
 
+                if(nextParents.size()==0) {
+                    finalNodes.add(node);
+                    System.out.println("final node added");
+                }
+            }
 
             System.out.println("Size nextParents: "+ nextParents.size());
-            for (Node node : nextParents){
-                parents.add(node);
-            }
+            parents.clear();
+            parents.addAll(nextParents);
 
         }
+
+        return finalNodes;
     }
 
     private Node addNode(int index, State nextState, Node parent, List<State> visitedStates){
