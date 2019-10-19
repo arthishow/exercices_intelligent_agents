@@ -104,7 +104,30 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
     }
 
     private Plan astarPlan(Vehicle vehicle, TaskSet tasks) {
-        Plan plan = new Plan(vehicle.getCurrentCity());
+        TaskSet initialTasks = tasks;
+        TaskSet currentTasks = TaskSet.noneOf(tasks);
+        State initialState = new State(vehicle.getCurrentCity(), currentTasks, initialTasks);
+        Node root = new Node("0", initialState, null);
+        Tree tree = new Tree(root);
+
+        List<Node> Q = new ArrayList<>();
+        Q.add(root);
+        Map<State, Double> C = new HashMap<>();
+        Node finalNode = null;
+        while (!Q.isEmpty()) {
+            Node n = Q.remove(0);
+            if (n.state.isFinal()) {
+                finalNode = n;
+                break;
+            } else if (!C.containsKey(n.state) || (n.distance() < C.get(n.state))) {
+                C.put(n.state, n.distance());
+                List<Node> S = successors(tree, n);
+                Q.addAll(S);
+                Q.sort((n1, n2) -> n1.aStarComparison(n2));
+            }
+        }
+
+        Plan plan = planGivenFinalNode(finalNode);
         return plan;
     }
 
@@ -116,30 +139,40 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         Tree tree = new Tree(root);
 
         List<Node> finalNodes = new ArrayList<>();
-
         List<Node> Q = new ArrayList<>();
         Q.add(root);
-        Set<Node> C = new HashSet<>();
+        Map<State, Double> C = new HashMap<>();
 
         while (!Q.isEmpty()) {
             Node n = Q.remove(0);
             if (n.state.isFinal()) {
                 finalNodes.add(n);
-            } else if (!C.contains(n)) {
-                C.add(n);
+            } else if (!C.containsKey(n.state) || (n.distance() < C.get(n.state))) {
+                C.put(n.state, n.distance());
                 List<Node> S = successors(tree, n);
                 Q.addAll(S);
             }
         }
 
-        Plan plan = bestBFSPlan(finalNodes);
+        Node bestNode = null;
+        double minDistance = Double.MAX_VALUE;
+        for(Node node: finalNodes){
+            double distance = node.distance();
+            if(distance < minDistance){
+                minDistance = distance;
+                bestNode = node;
+            }
+        }
+
+        //TODO convert best path into series of action
+        Plan plan = planGivenFinalNode(bestNode);
 
         return plan;
     }
 
-    public Plan bestBFSPlan(List<Node> finalNodes){
+    public Plan planGivenFinalNode(Node node){
 
-        Plan plan = new Plan();
+        Plan plan = null;
         return plan;
     }
 
@@ -220,9 +253,6 @@ class Tree {
         Node node = new Node(parent.path+"-"+numNode, nextState, parent);
         parent.children.add(node);
         numNode++;
-
-        System.out.println("Node "+numNode+ " added, City: " + nextState.city);
-
         return node;
     }
 }
@@ -241,16 +271,6 @@ class Node {
         this.children = new ArrayList<>();
     }
 
-    public boolean hasParent(State state) {
-        if (parent == null) {
-            return false;
-        }
-        if (parent.state.equals(state)) {
-            return true;
-        }
-        return parent.hasParent(state);
-    }
-
     public double distance(){
         double distance = 0;
         if(parent == null){
@@ -259,6 +279,12 @@ class Node {
             distance += state.city.distanceTo(parent.state.city) + parent.distance();
         }
         return distance;
+    }
+
+    public int aStarComparison(Node node2){
+        double distance1 = distance() + state.heuristicDistanceToFinalState();
+        double distance2 = node2.distance() + node2.state.heuristicDistanceToFinalState();
+        return distance1 > distance2 ? 1 : (distance1 < distance2) ? -1 : 0;
     }
 }
 
@@ -275,6 +301,10 @@ class State {
 
     public boolean isFinal(){
         return currentTasks.isEmpty() && remainingTasks.isEmpty();
+    }
+
+    public double heuristicDistanceToFinalState(){
+        return 0;
     }
 
     @Override
