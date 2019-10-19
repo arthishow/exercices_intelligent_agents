@@ -1,5 +1,6 @@
 # Project specific files
 history.xml
+/bin
 
 # IntelliJ IDEA files
 .DS_Store

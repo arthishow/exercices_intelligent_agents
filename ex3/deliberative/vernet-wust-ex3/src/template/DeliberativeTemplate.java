@@ -20,338 +20,280 @@ import java.util.*;
 @SuppressWarnings("unused")
 public class DeliberativeTemplate implements DeliberativeBehavior {
 
-	enum Algorithm { NAIVE, BFS, ASTAR }
-	
-	/* Environment */
-	Topology topology;
-	TaskDistribution td;
-	int numCities;
-	
-	/* the properties of the agent */
-	Agent agent;
-	Vehicle vehicle;
-	int capacity = 30;
-	int costPerKm;
+    enum Algorithm {NAIVE, BFS, ASTAR}
 
-	/* the planning class */
-	Algorithm algorithm;
-	
-	@Override
-	public void setup(Topology topology, TaskDistribution td, Agent agent) {
-		this.topology = topology;
-		this.td = td;
-		this.agent = agent;
-		
-		// initialize the planner
-		int capacity = agent.vehicles().get(0).capacity();
-		int costPerKm = agent.vehicles().get(0).costPerKm();
-		int numCities = topology.cities().size();
-		System.out.println("Number of cities: " + numCities);
+    /* Environment */
+    Topology topology;
+    TaskDistribution td;
+    int numCities;
 
-		String algorithmName = agent.readProperty("algorithm", String.class, "ASTAR");
-		
-		// Throws IllegalArgumentException if algorithm is unknown
-		algorithm = Algorithm.valueOf(algorithmName.toUpperCase());
-		
-		// ...
-	}
-	
-	@Override
-	public Plan plan(Vehicle vehicle, TaskSet tasks) {
-		Plan plan;
+    /* the properties of the agent */
+    Agent agent;
+    Vehicle vehicle;
+    int capacity = 30;
+    int costPerKm;
 
-		// Compute the plan with the selected algorithm.
-		switch (algorithm) {
-		case NAIVE:
-			// ...
-			plan = naivePlan(vehicle, tasks);
-			break;
-		case ASTAR:
-			// ...
-			plan = astarPlan(vehicle, tasks);
-			break;
-		case BFS:
-			// ...
-			plan = bfsPlan(vehicle, tasks);
-			break;
-		default:
-			throw new AssertionError("Should not happen.");
-		}		
-		return plan;
-	}
-	
-	private Plan naivePlan(Vehicle vehicle, TaskSet tasks) {
-		City current = vehicle.getCurrentCity();
-		Plan plan = new Plan(current);
+    /* the planning class */
+    Algorithm algorithm;
 
-		for (Task task : tasks) {
-			// move: current city => pickup location
-			for (City city : current.pathTo(task.pickupCity))
-				plan.appendMove(city);
+    @Override
+    public void setup(Topology topology, TaskDistribution td, Agent agent) {
+        this.topology = topology;
+        this.td = td;
+        this.agent = agent;
 
-			plan.appendPickup(task);
+        // initialize the planner
+        int capacity = agent.vehicles().get(0).capacity();
+        int costPerKm = agent.vehicles().get(0).costPerKm();
+        int numCities = topology.cities().size();
+        System.out.println("Number of cities: " + numCities);
 
-			// move: pickup location => delivery location
-			for (City city : task.path())
-				plan.appendMove(city);
+        String algorithmName = agent.readProperty("algorithm", String.class, "ASTAR");
 
-			plan.appendDelivery(task);
+        // Throws IllegalArgumentException if algorithm is unknown
+        algorithm = Algorithm.valueOf(algorithmName.toUpperCase());
 
-			// set current city
-			current = task.deliveryCity;
-		}
-		return plan;
-	}
+        // ...
+    }
 
-	private Plan astarPlan(Vehicle vehicle, TaskSet tasks) {
+    @Override
+    public Plan plan(Vehicle vehicle, TaskSet tasks) {
+        Plan plan;
+
+        // Compute the plan with the selected algorithm.
+        switch (algorithm) {
+            case NAIVE:
+                // ...
+                plan = naivePlan(vehicle, tasks);
+                break;
+            case ASTAR:
+                // ...
+                plan = astarPlan(vehicle, tasks);
+                break;
+            case BFS:
+                // ...
+                plan = bfsPlan(vehicle, tasks);
+                break;
+            default:
+                throw new AssertionError("Should not happen.");
+        }
+        return plan;
+    }
+
+    private Plan naivePlan(Vehicle vehicle, TaskSet tasks) {
+        City current = vehicle.getCurrentCity();
+        Plan plan = new Plan(current);
+
+        for (Task task : tasks) {
+            // move: current city => pickup location
+            for (City city : current.pathTo(task.pickupCity))
+                plan.appendMove(city);
+
+            plan.appendPickup(task);
+
+            // move: pickup location => delivery location
+            for (City city : task.path())
+                plan.appendMove(city);
+
+            plan.appendDelivery(task);
+
+            // set current city
+            current = task.deliveryCity;
+        }
+        return plan;
+    }
+
+    private Plan astarPlan(Vehicle vehicle, TaskSet tasks) {
         Plan plan = new Plan(vehicle.getCurrentCity());
-		return plan;
-	}
+        return plan;
+    }
 
-	private Plan bfsPlan(Vehicle vehicle, TaskSet tasks) {
-
-	    //define initial state & all possible goal states (city = delivery/pickup city, currentTasks = null, tasksLeft = 0)
-        final List<Task> initialTasks = getInitialTasks(tasks);
-        List<Task> currentTasks = new LinkedList<>();
-        final List<State> goalStates = evaluateGoalStates(tasks);
+    private Plan bfsPlan(Vehicle vehicle, TaskSet tasks) {
+        TaskSet initialTasks = tasks;
+        TaskSet currentTasks = TaskSet.noneOf(tasks);
         State initialState = new State(vehicle.getCurrentCity(), currentTasks, initialTasks);
+        Node root = new Node("0", initialState, null);
+        Tree tree = new Tree(root);
 
-        int numberOfGoalStates = goalStates.size();
+        List<Node> finalNodes = new ArrayList<>();
 
-        Node root = new Node(0, initialState, null);
-        List<Node> finalNodes = createTree(root, initialTasks, goalStates);
-        List<Node> goalNodes = new LinkedList<>();
+        List<Node> Q = new ArrayList<>();
+        Q.add(root);
+        Set<Node> C = new HashSet<>();
 
-        System.out.println("Tree Created");
-
-        for (Node node : finalNodes) {
-            for (State state : goalStates){
-                if(node.state.equals(state)){
-                    goalNodes.add(node);
-                    System.out.println("Tree Created");
-                }
-
+        while (!Q.isEmpty()) {
+            Node n = Q.remove(0);
+            if (n.state.isFinal()) {
+                finalNodes.add(n);
+            } else if (!C.contains(n)) {
+                C.add(n);
+                List<Node> S = successors(tree, n);
+                Q.addAll(S);
             }
         }
 
-        int i = 1;
-        for (Node node : goalNodes) {
-            System.out.println("Goal Node No: "+ i);
-            System.out.println("Index: "+node.index+"City: "+node.state.city);
-            i++;
+        Plan plan = bestBFSPlan(finalNodes);
+
+        return plan;
+    }
+
+    public Plan bestBFSPlan(List<Node> finalNodes){
+
+        Plan plan = new Plan();
+        return plan;
+    }
+
+    public List<Node> successors(Tree tree, Node node) {
+
+        List<Node> successors = new ArrayList<>();
+        State currentState = node.state;
+
+        List<City> deliveries = new ArrayList<>();
+        for (Task task : currentState.currentTasks) {
+            deliveries.add(task.deliveryCity);
         }
 
-        //BFS Algorithm
-        List<State> actions = bfsAlgorithm(initialState, initialTasks, goalStates);
-
-		Plan plan = new Plan(initialState.city);
-
-		return plan;
-	}
-
-	public List<Node> createTree(Node root, List<Task> remainingTasks, List<State> goalStates){
-
-	    int depthLvl = 0;
-        int nodeIndex = 1;
-        int totalWeight = 0;
-
-        List<City> neighbors;
-        List<State> visitedStates = new ArrayList<>();
-        List<Node> parents = new LinkedList<>();
-        List<Node> nextParents = new LinkedList<>();
-        List<Node> finalNodes = new LinkedList<>();
-
-        //Lists with all pickup and delivery destinations
-        List<City> deliveries = new ArrayList<>(remainingTasks.size());
-        List<City> pickups = new ArrayList<>(remainingTasks.size());
-        for(int index = 0; index < remainingTasks.size(); index++){
-            Task task = remainingTasks.get(index);
-            deliveries.add(task.deliveryCity);
+        List<City> pickups = new ArrayList<>();
+        for (Task task : currentState.remainingTasks) {
             pickups.add(task.pickupCity);
         }
 
-        System.out.println("TaskSet:");
-        System.out.println(remainingTasks.toString());
-
-        visitedStates.add(root.state);
-        parents.add(root);
-        nextParents.add(root);
-
-        //makes tree
-
-        while(nextParents.size()!=0) {
-
-            nextParents.clear();
-            depthLvl++;
-            System.out.println("Depth of Tree: " + depthLvl);
-            System.out.println("Size parents: "+ parents.size());
-
-            for (Node node : parents) {
-
-                State currentState = node.state;
-
-                //is delivery possible?
-                if (deliveries.contains(currentState.city) && currentState.currentTasks != null) {
-                    for (Task task : currentState.currentTasks) {
-                        //always make a delivery
-                        if (task.deliveryCity.equals(currentState.city)) {
-
-                            List<Task> listCurrent = new ArrayList<>();
-                            listCurrent.addAll(currentState.currentTasks);
-                            listCurrent.remove(task);
-                            State nextState = new State(currentState.city, listCurrent, currentState.remainingTasks);
-
-                            nextParents.add(addNode(nodeIndex, nextState, node, visitedStates));
-                            nodeIndex++;
-                        }
-                    }
-                }
-
-                //is pickup possible?
-                if(pickups.contains(currentState.city)) {
-                    //sum of current weights
-                    if(currentState.currentTasks != null) {
-                        for (Task task : currentState.currentTasks) {
-                            totalWeight += task.weight;
-                        }
-                    }
-
-                    Iterator<Task> iterator = currentState.remainingTasks.iterator();
-                    while (iterator.hasNext()) {
-                        Task task = iterator.next();
-                        if (task.pickupCity.equals(currentState.city) && (totalWeight + task.weight) <= capacity) {
-                            List<Task> listCurrent = new ArrayList<>();
-                            List<Task> listRemaining = new ArrayList<>();
-                            listCurrent.addAll(currentState.currentTasks);
-                            listCurrent.add(task);
-                            listRemaining.addAll(currentState.remainingTasks);
-                            listRemaining.remove(task);
-                            State nextState = new State(currentState.city, listCurrent, listRemaining);
-                            //already visited?
-                            if (!visitedStates.contains(nextState)) {
-                                nextParents.add(addNode(nodeIndex, nextState, node, visitedStates));
-                                nodeIndex++;
-                            }
-                        }
-                    }
-                }
-
-                //Visit all neighbouring cities
-                neighbors = currentState.city.neighbors();
-                for (City neighborCity : neighbors) {
-                    State nextState = new State(neighborCity, currentState.currentTasks, currentState.remainingTasks);
-                    if (!visitedStates.contains(nextState)) {
-                        nextParents.add(addNode(nodeIndex, nextState, node, visitedStates));
-                        nodeIndex++;
-                    }
-                }
-
-                if(nextParents.size()==0) {
-                    finalNodes.add(node);
-                    System.out.println("final node added");
+        //is delivery possible? if yes, no need to add other states
+        if (deliveries.contains(currentState.city) && currentState.currentTasks != null) {
+            for (Task task : currentState.currentTasks) {
+                if (task.deliveryCity.equals(currentState.city)) {
+                    TaskSet taskCurrent = currentState.currentTasks.clone();
+                    taskCurrent.remove(task);
+                    State nextState = new State(currentState.city, taskCurrent, currentState.remainingTasks);
+                    successors.add(tree.addNode(nextState, node));
+                    break;
                 }
             }
-
-            System.out.println("Size nextParents: "+ nextParents.size());
-            parents.clear();
-            parents.addAll(nextParents);
-
         }
 
-        return finalNodes;
+        //is pickup possible?
+        if (pickups.contains(currentState.city)) {
+            int totalWeight = currentState.currentTasks.weightSum();
+            for (Task task : currentState.remainingTasks) {
+                if (task.pickupCity.equals(currentState.city) && (totalWeight + task.weight) <= capacity) {
+                    TaskSet taskCurrent = currentState.currentTasks.clone();
+                    taskCurrent.add(task);
+                    TaskSet taskRemaining = currentState.remainingTasks.clone();
+                    taskRemaining.remove(task);
+                    State nextState = new State(currentState.city, taskCurrent, taskRemaining);
+                    successors.add(tree.addNode(nextState, node));
+                    break;
+                }
+            }
+        }
+
+        //visit all neighbouring cities
+        for (City neighborCity : currentState.city.neighbors()) {
+            State nextState = new State(neighborCity, currentState.currentTasks, currentState.remainingTasks);
+            successors.add(tree.addNode(nextState, node));
+        }
+
+        return successors;
     }
 
-    private Node addNode(int index, State nextState, Node parent, List<State> visitedStates){
-        Node node = new Node(index, nextState, parent);
-        visitedStates.add(nextState);
+    @Override
+    public void planCancelled(TaskSet carriedTasks) {
+
+        if (!carriedTasks.isEmpty()) {
+            // This cannot happen for this simple agent, but typically
+            // you will need to consider the carriedTasks when the next
+            // plan is computed.
+        }
+    }
+}
+
+class Tree {
+    public int numNode;
+    public Node root;
+
+    public Tree(Node root){
+        this.root = root;
+        this.numNode = 1;
+    }
+
+    public Node addNode(State nextState, Node parent) {
+        Node node = new Node(parent.path+"-"+numNode, nextState, parent);
         parent.children.add(node);
-        System.out.println("Node added, index: "+ index+", City: "+ nextState.city);
+        numNode++;
+
+        System.out.println("Node "+numNode+ " added, City: " + nextState.city);
+
         return node;
     }
+}
 
-	public List<State> bfsAlgorithm(State currentState, List<Task> remainingTasks, List<State> goalStates){
+class Node {
 
-		//Final list with all state transitions (= plan)
-		Map<Integer, DeliberativeTemplate.State> nodes = new HashMap<>();
+    public String path;
+    public State state;
+    public Node parent;
+    public List<Node> children;
 
-        List<DeliberativeTemplate.State> actions = new LinkedList<>();
-
-		return actions;
-	}
-
-	@Override
-	public void planCancelled(TaskSet carriedTasks) {
-
-		if (!carriedTasks.isEmpty()) {
-			// This cannot happen for this simple agent, but typically
-			// you will need to consider the carriedTasks when the next
-			// plan is computed.
-		}
-	}
-
-	private List<State> evaluateGoalStates(TaskSet tasks){
-        List<State> goalStates = new ArrayList<>();
-
-        for (Task task : tasks) {
-			State goalStateDel = new State(task.deliveryCity, null, null);
-			State goalStatePU = new State(task.pickupCity, null, null);
-            if(!goalStates.contains(goalStatePU))
-                goalStates.add(goalStatePU);
-			if(!goalStates.contains(goalStateDel))
-				goalStates.add(goalStateDel);
-        }
-        return goalStates;
+    public Node(String path, State state, Node parent) {
+        this.path = path;
+        this.state = state;
+        this.parent = parent;
+        this.children = new ArrayList<>();
     }
 
-    private List<Task> getInitialTasks(TaskSet tasks){
-        List<Task> initialTasks = new ArrayList<>();
-
-        for (Task task : tasks)
-            initialTasks.add(task);
-
-        return initialTasks;
-    }
-
-    private class Node {
-
-	    private int index;
-        private State state;
-        private Node parent;
-        private List<Node> children;
-
-        public Node(int index, State state, Node parent) {
-            this.index = index;
-            this.state = state;
-            this.parent = parent;
-            this.children = new ArrayList<>();
-        }
-    }
-
-    public class State {
-        private City city;
-        private List<Task> currentTasks;
-        private List<Task> remainingTasks;
-
-        public State(City city, List<Task> currentTasks, List<Task> remainingTasks) {
-            this.city = city;
-            this.currentTasks = currentTasks;
-            this.remainingTasks = remainingTasks;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if(obj != null && obj instanceof State) {
-                State s = (State)obj;
-                if((currentTasks != null && s.currentTasks != null) && (remainingTasks != null && s.remainingTasks != null)) {
-                    return city.equals(s.city) && currentTasks.equals(s.currentTasks) && remainingTasks.equals(s.remainingTasks);
-                } else if ((remainingTasks == null && s.remainingTasks == null) && (currentTasks != null && s.currentTasks != null)) {
-                    return city.equals(s.city) && currentTasks.equals(s.currentTasks);
-                } else if ((currentTasks == null && s.currentTasks == null) && (remainingTasks != null && s.remainingTasks != null)){
-                    return city.equals(s.city) && remainingTasks.equals(s.remainingTasks);
-                }
-            }
+    public boolean hasParent(State state) {
+        if (parent == null) {
             return false;
         }
+        if (parent.state.equals(state)) {
+            return true;
+        }
+        return parent.hasParent(state);
     }
 
+    public double distance(){
+        double distance = 0;
+        if(parent == null){
+            return distance;
+        }else{
+            distance += state.city.distanceTo(parent.state.city) + parent.distance();
+        }
+        return distance;
+    }
+}
+
+class State {
+    public City city;
+    public TaskSet currentTasks;
+    public TaskSet remainingTasks;
+
+    public State(City city, TaskSet currentTasks, TaskSet remainingTasks) {
+        this.city = city;
+        this.currentTasks = currentTasks;
+        this.remainingTasks = remainingTasks;
+    }
+
+    public boolean isFinal(){
+        return currentTasks.isEmpty() && remainingTasks.isEmpty();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj != null && obj instanceof State) {
+            State s = (State) obj;
+            if ((city != null && s.city != null) || (city == null && s.city == null)) {
+                return city.equals(s.city) && currentTasks.equals(s.currentTasks) && remainingTasks.equals(s.remainingTasks);
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        if(city != null) {
+            return Objects.hash(city.hashCode(), currentTasks.hashCode(), remainingTasks.hashCode());
+        }else{
+            return Objects.hash(currentTasks.hashCode(), remainingTasks.hashCode());
+        }
+    }
 }
