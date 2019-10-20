@@ -30,7 +30,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
     /* the properties of the agent */
     Agent agent;
     Vehicle vehicle;
-    int capacity = 30;
+    int capacity;
     int costPerKm;
 
     /* the planning class */
@@ -43,17 +43,13 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         this.agent = agent;
 
         // initialize the planner
-        int capacity = agent.vehicles().get(0).capacity();
-        int costPerKm = agent.vehicles().get(0).costPerKm();
-        int numCities = topology.cities().size();
-        System.out.println("Number of cities: " + numCities);
+        capacity = agent.vehicles().get(0).capacity();
+        costPerKm = agent.vehicles().get(0).costPerKm();
 
         String algorithmName = agent.readProperty("algorithm", String.class, "ASTAR");
 
         // Throws IllegalArgumentException if algorithm is unknown
         algorithm = Algorithm.valueOf(algorithmName.toUpperCase());
-
-        // ...
     }
 
     @Override
@@ -104,9 +100,8 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
     }
 
     private Plan astarPlan(Vehicle vehicle, TaskSet tasks) {
-        TaskSet initialTasks = tasks;
         TaskSet currentTasks = TaskSet.noneOf(tasks);
-        State initialState = new State(vehicle.getCurrentCity(), currentTasks, initialTasks);
+        State initialState = new State(vehicle.getCurrentCity(), currentTasks, tasks);
         Node root = new Node("0", initialState, null);
         Tree tree = new Tree(root);
 
@@ -114,6 +109,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         Q.add(root);
         Map<State, Double> C = new HashMap<>();
         Node finalNode = null;
+
         while (!Q.isEmpty()) {
             Node n = Q.remove(0);
             if (n.state.isFinal()) {
@@ -132,9 +128,8 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
     }
 
     private Plan bfsPlan(Vehicle vehicle, TaskSet tasks) {
-        TaskSet initialTasks = tasks;
         TaskSet currentTasks = TaskSet.noneOf(tasks);
-        State initialState = new State(vehicle.getCurrentCity(), currentTasks, initialTasks);
+        State initialState = new State(vehicle.getCurrentCity(), currentTasks, tasks);
         Node root = new Node("0", initialState, null);
         Tree tree = new Tree(root);
 
@@ -172,8 +167,49 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 
     public Plan planGivenFinalNode(Node node){
 
-        Plan plan = null;
+        List<Node> nodeList = new ArrayList<>();
+
+        while(node.parent!=null){
+            nodeList.add(node);
+            node = node.parent;
+        }
+        nodeList.add(node);
+        //start with root
+        Collections.reverse(nodeList);
+        Node currentNode = nodeList.get(0);
+        Plan plan = new Plan(currentNode.state.city);
+        nodeList.remove(node);
+
+        for(Node nextNode : nodeList){
+
+            if(currentNode.state.city != nextNode.state.city){
+                plan.appendMove(nextNode.state.city);
+            }
+            else if(!currentNode.state.remainingTasks.equals(nextNode.state.remainingTasks)){
+                for(Task task : currentNode.state.remainingTasks){
+                    if(!nextNode.state.remainingTasks.contains(task))
+                        plan.appendPickup(task);
+                }
+            }
+            else{
+                for(Task task : currentNode.state.currentTasks){
+                    if(!nextNode.state.currentTasks.contains(task))
+                        plan.appendDelivery(task);
+                }
+            }
+
+            currentNode = nextNode;
+        }
+
         return plan;
+    }
+
+    @Override
+    public void planCancelled(TaskSet carriedTasks) {
+
+        if (!carriedTasks.isEmpty()) {
+
+        }
     }
 
     public List<Node> successors(Tree tree, Node node) {
@@ -227,16 +263,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         }
 
         return successors;
-    }
-
-    @Override
-    public void planCancelled(TaskSet carriedTasks) {
-
-        if (!carriedTasks.isEmpty()) {
-            // This cannot happen for this simple agent, but typically
-            // you will need to consider the carriedTasks when the next
-            // plan is computed.
-        }
     }
 }
 
