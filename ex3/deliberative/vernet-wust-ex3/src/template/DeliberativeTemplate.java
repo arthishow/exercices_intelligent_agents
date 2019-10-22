@@ -101,6 +101,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
     }
 
     private Plan aStarPlan(Vehicle vehicle, TaskSet tasks, State initialState) {
+        long startTime = System.nanoTime();
         Node root = new Node("0", initialState, null);
         Tree tree = new Tree(root);
 
@@ -123,10 +124,14 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         }
 
         Plan plan = planGivenFinalNode(finalNode);
+        long endTime = System.nanoTime();
+        long totalTime = endTime - startTime;
+        System.out.println(totalTime/1000000000.0);
         return plan;
     }
 
     private Plan bfsPlan(Vehicle vehicle, TaskSet tasks, State initialState) {
+        long startTime = System.nanoTime();
         Node root = new Node("0", initialState, null);
         Tree tree = new Tree(root);
 
@@ -157,6 +162,10 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         }
 
         Plan plan = planGivenFinalNode(bestNode);
+
+        long endTime = System.nanoTime();
+        long totalTime = endTime - startTime;
+        System.out.println(totalTime/1000000000.0);
 
         return plan;
     }
@@ -202,7 +211,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 
     @Override
     public void planCancelled(TaskSet carriedTasks) {
-
         if (!carriedTasks.isEmpty()) {
             plan(vehicle, agent.getTasks());
         }
@@ -247,7 +255,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
                     taskRemaining.remove(task);
                     State nextState = new State(currentState.city, taskCurrent, taskRemaining);
                     successors.add(tree.addNode(nextState, node));
-                    break;
                 }
             }
         }
@@ -334,19 +341,18 @@ class State {
             cities.add(task.deliveryCity);
         }
         double totalDistance = 0;
+        City closestCity = this.city;
         while(!cities.isEmpty()){
-            /*double minDistance = Double.MAX_VALUE;
-            City closestCity = this.city;
+            double minDistance = Double.MAX_VALUE;
+            City currentCity = closestCity;
             for(City city: cities){
-                if(this.city.distanceTo(city)< minDistance){
-                    minDistance = this.city.distanceTo(city);
+                if(currentCity.distanceTo(city)< minDistance){
+                    minDistance = currentCity.distanceTo(city);
                     closestCity = city;
                 }
             }
             cities.remove(closestCity);
-            totalDistance += minDistance;*/
-            totalDistance += city.distanceTo(cities.get(0));
-            cities.clear();
+            totalDistance += minDistance;
         }
 
         return totalDistance;
