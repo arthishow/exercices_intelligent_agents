@@ -41,6 +41,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         this.topology = topology;
         this.td = td;
         this.agent = agent;
+        this.vehicle = agent.vehicles().get(0);
 
         // initialize the planner
         capacity = agent.vehicles().get(0).capacity();
@@ -56,19 +57,19 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
     public Plan plan(Vehicle vehicle, TaskSet tasks) {
         Plan plan;
 
+        TaskSet currentTasks = vehicle.getCurrentTasks();
+        State initialState = new State(vehicle.getCurrentCity(), currentTasks, tasks);
+
         // Compute the plan with the selected algorithm.
         switch (algorithm) {
             case NAIVE:
-                // ...
                 plan = naivePlan(vehicle, tasks);
                 break;
             case ASTAR:
-                // ...
-                plan = astarPlan(vehicle, tasks);
+                plan = aStarPlan(vehicle, tasks, initialState);
                 break;
             case BFS:
-                // ...
-                plan = bfsPlan(vehicle, tasks);
+                plan = bfsPlan(vehicle, tasks, initialState);
                 break;
             default:
                 throw new AssertionError("Should not happen.");
@@ -99,9 +100,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         return plan;
     }
 
-    private Plan astarPlan(Vehicle vehicle, TaskSet tasks) {
-        TaskSet currentTasks = TaskSet.noneOf(tasks);
-        State initialState = new State(vehicle.getCurrentCity(), currentTasks, tasks);
+    private Plan aStarPlan(Vehicle vehicle, TaskSet tasks, State initialState) {
         Node root = new Node("0", initialState, null);
         Tree tree = new Tree(root);
 
@@ -127,9 +126,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         return plan;
     }
 
-    private Plan bfsPlan(Vehicle vehicle, TaskSet tasks) {
-        TaskSet currentTasks = TaskSet.noneOf(tasks);
-        State initialState = new State(vehicle.getCurrentCity(), currentTasks, tasks);
+    private Plan bfsPlan(Vehicle vehicle, TaskSet tasks, State initialState) {
         Node root = new Node("0", initialState, null);
         Tree tree = new Tree(root);
 
@@ -159,7 +156,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
             }
         }
 
-        //TODO convert best path into series of action
         Plan plan = planGivenFinalNode(bestNode);
 
         return plan;
@@ -208,7 +204,7 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
     public void planCancelled(TaskSet carriedTasks) {
 
         if (!carriedTasks.isEmpty()) {
-
+            plan(vehicle, agent.getTasks());
         }
     }
 
@@ -330,7 +326,30 @@ class State {
     }
 
     public double heuristicDistanceToFinalState(){
-        return 0;
+        List<City> cities = new ArrayList<>();
+        for(Task task: currentTasks){
+            cities.add(task.deliveryCity);
+        }
+        for(Task task: remainingTasks){
+            cities.add(task.deliveryCity);
+        }
+        double totalDistance = 0;
+        while(!cities.isEmpty()){
+            /*double minDistance = Double.MAX_VALUE;
+            City closestCity = this.city;
+            for(City city: cities){
+                if(this.city.distanceTo(city)< minDistance){
+                    minDistance = this.city.distanceTo(city);
+                    closestCity = city;
+                }
+            }
+            cities.remove(closestCity);
+            totalDistance += minDistance;*/
+            totalDistance += city.distanceTo(cities.get(0));
+            cities.clear();
+        }
+
+        return totalDistance;
     }
 
     @Override
