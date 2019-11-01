@@ -126,7 +126,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
         Plan plan = planGivenFinalNode(finalNode);
         long endTime = System.nanoTime();
         long totalTime = endTime - startTime;
-        System.out.println(totalTime/1000000000.0);
         return plan;
     }
 
@@ -165,7 +164,6 @@ public class DeliberativeTemplate implements DeliberativeBehavior {
 
         long endTime = System.nanoTime();
         long totalTime = endTime - startTime;
-        System.out.println(totalTime/1000000000.0);
 
         return plan;
     }
