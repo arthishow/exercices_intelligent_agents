@@ -85,38 +85,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
         return plans;
     }
 
-    private List<Plan> optimalPlans(Variable X, Domain D, Constraint C){
-        Assignment solution = stochasticLocalSearch(X, D, C);
-        List<Plan> plans = plansFromVariableAssignment(solution);
-
-        return plans;
-    }
-
-    private Assignment stochasticLocalSearch(Variable X, Domain D, Constraint C){
-        Assignment A = selectInitialSolution(X, D, C);
-        return A;
-    }
-
-    private Assignment selectInitialSolution(Variable X, Domain D, Constraint C) {
-        List<Task> tasks = D.nextTask;
-        for(int i = 0; i < tasks.size() - 1; i++){
-            X.nextTask_t.put(tasks.get(i), tasks.get(i+1));
-            X.time.put(tasks.get(i), i + 1);
-            X.vehicle.put(tasks.get(i), D.vehicle.get(0));
-        }
-        X.nextTask_t.put(tasks.get(tasks.size() - 1), null);
-        X.time.put(tasks.get(tasks.size() - 1), tasks.size());
-
-        X.nextTask_v.put(D.vehicle.get(0), tasks.get(0));
-
-        return new Assignment(X, D, C);
-    }
-
-    //TODO
-    private List<Plan> plansFromVariableAssignment(Assignment A){
-        return null;
-    }
-
     private Plan naivePlan(Vehicle vehicle, TaskSet tasks) {
         City current = vehicle.getCurrentCity();
         Plan plan = new Plan(current);
@@ -140,6 +108,59 @@ public class CentralizedTemplate implements CentralizedBehavior {
             current = task.deliveryCity;
         }
         return plan;
+    }
+
+    private List<Plan> optimalPlans(Variable X, Domain D, Constraint C){
+        Assignment solution = stochasticLocalSearch(X, D, C);
+        List<Plan> plans = plansFromVariableAssignment(solution);
+
+        return plans;
+    }
+
+    private Assignment stochasticLocalSearch(Variable X, Domain D, Constraint C){
+        Assignment A = selectInitialSolution(X, D, C);
+        return A;
+    }
+    //TODO adapt to make better initial assignment
+
+    private Assignment selectInitialSolution(Variable X, Domain D, Constraint C) {
+        List<Task> tasks = D.tasks;
+        List<Vehicle> vehicles = D.vehicles;
+
+        //distribution
+        for(Task t : tasks)
+            X.assignedTasks.get(vehicles.iterator().next()).add(t);
+
+                //ordering
+        for(Vehicle v: vehicles){
+            List<Task> ts = X.assignedTasks.get(v);
+
+            List<Task> pu = new ArrayList<>();
+            List<Task> del = new ArrayList<>();
+            for(Task t : ts) {
+                pu.add(t);
+                pu.add(null);
+                del.add(null);
+                del.add(t);
+            }
+            X.pickUp.put(v, pu);
+            X.delivery.put(v, del);
+
+            //moveOrder
+            List<City> order = new ArrayList<>();
+            for(Task t : ts) {
+                order.add(t.pickupCity);
+                order.add(t.deliveryCity);
+            }
+            X.moveOrder.put(v, order);
+        }
+
+        return new Assignment(X, D, C);
+    }
+    //TODO
+
+    private List<Plan> plansFromVariableAssignment(Assignment A){
+        return null;
     }
 
     private class Assignment{
@@ -170,25 +191,19 @@ public class CentralizedTemplate implements CentralizedBehavior {
             return b1 && b2 && b3 && b4 && b5 && b6 && b7;
         }
 
-        //TODO: the cost function is most likely not adapted for vehicles carrying several tasks
         private double cost(){
             double cost = 0;
 
-            for(Task task: D.nextTask){
-                Task nextTask = X.nextTask_t.get(task);
-                if(nextTask != null) {
-                    double distance = task.deliveryCity.distanceTo(nextTask.pickupCity);
-                    double length = nextTask.pickupCity.distanceTo(nextTask.deliveryCity);
-                    cost += (distance + length) * X.vehicle.get(task).costPerKm();
+            for(Vehicle v : D.vehicles){
+                Task firstTask = X.pickUp.get(v).get(0);
+                if (firstTask != null){
+                    double distance = v.homeCity().distanceTo(firstTask.pickupCity);
+                    cost += distance * v.costPerKm();
                 }
-            }
 
-            for(Vehicle vehicle: D.vehicle){
-                Task nextTask = X.nextTask_v.get(vehicle);
-                if(nextTask != null) {
-                    double distance = vehicle.homeCity().distanceTo(nextTask.pickupCity);
-                    double length = nextTask.pickupCity.distanceTo(nextTask.deliveryCity);
-                    cost += (distance + length) * vehicle.costPerKm();
+                for(int i = 0; i < X.moveOrder.size(); i++){
+                    double distance = X.moveOrder.get(v).get(i).distanceTo(X.moveOrder.get(v).get(i+1));
+                    cost += distance * v.costPerKm();
                 }
             }
 
@@ -199,42 +214,52 @@ public class CentralizedTemplate implements CentralizedBehavior {
 
     private class Variable {
 
-        private Map<Task, Task> nextTask_t;
-        private Map<Vehicle, Task> nextTask_v;
-        private Map<Task, Integer> time;
-        private Map<Task, Vehicle> vehicle;
+        //either use pickUp & delivery order or moveOrder (or both)
+        private Map<Vehicle, List<Task>> assignedTasks;
+        private Map<Vehicle, List<Task>> current;
+        private Map<Vehicle, List<Task>> done;
+        private Map<Vehicle, List<Task>> pickUp;
+        private Map<Vehicle, List<Task>> delivery;
+        private Map<Vehicle, List<City>> moveOrder;
 
         public Variable(List<Vehicle> vehicles, TaskSet tasks) {
 
-            this.nextTask_t = new HashMap<>(tasks.size());
-            this.nextTask_v = new HashMap<>(vehicles.size());
-            this.time = new HashMap<>(tasks.size());
-            this.vehicle = new HashMap<>(tasks.size());
+            this.assignedTasks = new HashMap<>(vehicles.size());
+            this.current = new HashMap<>(tasks.size());
+            this.done = new HashMap<>(tasks.size());
+            this.pickUp = new HashMap<>(vehicles.size());
+            this.delivery = new HashMap<>(vehicles.size());
+            this.moveOrder = new HashMap<>(vehicles.size());
 
-            for(Task task: tasks){
-                nextTask_t.put(task, null);
-                time.put(task, null);
-                vehicle.put(task, null);
-            }
+            /*for(Task task: tasks){
+                time_pu.put(task, null);
+                time_d.put(task, null);
+            }*/
 
             for(Vehicle vehicle: vehicles){
-                nextTask_v.put(vehicle, null);
+                assignedTasks.put(vehicle, null);
+                current.put(vehicle, null);
+                done.put(vehicle, null);
+                pickUp.put(vehicle, null);
+                delivery.put(vehicle, null);
+                moveOrder.put(vehicle, null);
             }
         }
     }
 
     private class Domain {
 
-        private List<Task> nextTask;
-        private List<Integer> time;
-        private List<Vehicle> vehicle;
+        private List<Task> tasks;
+        private List<Vehicle> vehicles;
+        private List<Integer> time;     //unnecessary?
+        private List<City> cities;      //unnecessary?
 
-        public Domain(List<Vehicle> vehicles, TaskSet tasks){
-            this.nextTask = new ArrayList<>(tasks);
-            this.time = IntStream.rangeClosed(1, tasks.size()).boxed().collect(Collectors.toList());
-            this.vehicle = new ArrayList<>(vehicles);
+        public Domain(List<Vehicle> vehicles, TaskSet tasks, Topology topology){
+            this.vehicles = vehicles;
+            this.tasks = new ArrayList<>(tasks);
+            this.time = IntStream.rangeClosed(1, tasks.size()*2).boxed().collect(Collectors.toList());
+            this.cities = new ArrayList<>(topology.cities());
         }
-
     }
 
     private class Constraint {
@@ -336,6 +361,26 @@ public class CentralizedTemplate implements CentralizedBehavior {
             }
 
             return true;
+        }
+    }
+
+
+    //probably not useful
+    private class Distances {
+
+        private Map<List<Task>, Double> td_tp;      //delivery -> pickup
+        private Map<Task, Double> length_t;         //shortest length of task (pickup -> delivery)
+        private Map<List<Task>, Double> tp_tp;      //pickup -> pickup
+        private Map<List<Task>, Double> td_td;      //delivery -> delivery
+        private Map<Vehicle, Double> v_tp;          //starting location -> first task
+
+        public Distances(TaskSet tasks, List<Vehicle> vehicles, Topology topology){
+            this.td_tp = new HashMap<>(tasks.size()*(tasks.size()-1));
+            this.length_t = new HashMap<>(tasks.size());
+            this.tp_tp = new HashMap<>(tasks.size()*(tasks.size()-1));
+            this.td_td = new HashMap<>(tasks.size()*(tasks.size()-1));
+            this.v_tp = new HashMap<>(vehicles.size());
+
         }
     }
 }
