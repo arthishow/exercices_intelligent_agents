@@ -272,13 +272,31 @@ public class CentralizedTemplate implements CentralizedBehavior {
     // assign every tasks to one vehicle that will pick up and deliver each task after the other
     private Assignment selectInitialSolution(Variable X, Domain D, Constraint C) {
 
-        List<Task> tasks = new ArrayList<>();
-        for(Task task: D.tasks){
-            tasks.add(task);
-            tasks.add(task);
-        }
+        double nbTasks = D.tasks.size();
+        double nbVehicles = D.vehicles.size();
+        int nbTasksEach = (int) Math.floor(nbTasks / nbVehicles);
+        double remaining = nbTasks % nbVehicles;
 
-        X.nextAction.put(D.vehicles.get(0), tasks);
+        Iterator<Task> iterator = D.tasks.iterator();
+
+        for(Vehicle vehicle : D.vehicles){
+            List<Task> initialTasks = new ArrayList<>(nbTasksEach);
+
+            for(int count = 0; count<nbTasksEach; count++){
+                Task task = iterator.next();
+                initialTasks.add(task);
+                initialTasks.add(task);
+            }
+
+            if(remaining>0){
+                Task task = iterator.next();
+                initialTasks.add(task);
+                initialTasks.add(task);
+                remaining--;
+            }
+
+            X.nextAction.put(vehicle, initialTasks);
+        }
 
         return new Assignment(X, D, C);
     }
