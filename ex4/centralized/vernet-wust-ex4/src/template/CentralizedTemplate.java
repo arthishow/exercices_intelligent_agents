@@ -66,16 +66,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
 
         System.out.println("Agent " + agent.id() + " has tasks " + tasks);
 
-        /*
-        Plan planVehicle1 = naivePlan(vehicles.get(0), tasks);
-
-        List<Plan> plans = new ArrayList<Plan>();
-        plans.add(planVehicle1);
-        while (plans.size() < vehicles.size()) {
-            plans.add(Plan.EMPTY);
-        }
-        */
-
         List<Plan> plans = optimalPlans(X, D, C);
 
         long time_end = System.currentTimeMillis();
@@ -83,31 +73,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
         System.out.println("The plan was generated in " + duration + " milliseconds.");
 
         return plans;
-    }
-
-    private Plan naivePlan(Vehicle vehicle, TaskSet tasks) {
-        City current = vehicle.getCurrentCity();
-        Plan plan = new Plan(current);
-
-        for (Task task : tasks) {
-            // move: current city => pickup location
-            for (City city : current.pathTo(task.pickupCity)) {
-                plan.appendMove(city);
-            }
-
-            plan.appendPickup(task);
-
-            // move: pickup location => delivery location
-            for (City city : task.path()) {
-                plan.appendMove(city);
-            }
-
-            plan.appendDelivery(task);
-
-            // set current city
-            current = task.deliveryCity;
-        }
-        return plan;
     }
 
     private List<Plan> optimalPlans(Variable X, Domain D, Constraint C){
