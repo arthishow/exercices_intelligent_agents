@@ -60,7 +60,7 @@ public class CentralizedTemplate implements CentralizedBehavior {
         int nb_vehicles = vehicles.size();
         int nb_tasks = tasks.size();
 
-        Variable X = new Variable(vehicles, tasks);
+        Variable X = new Variable(vehicles);
         Domain D = new Domain(vehicles, tasks);
         Constraint C = new Constraint();
 
@@ -111,56 +111,166 @@ public class CentralizedTemplate implements CentralizedBehavior {
     }
 
     private List<Plan> optimalPlans(Variable X, Domain D, Constraint C){
-        Assignment solution = stochasticLocalSearch(X, D, C);
+        Assignment solution = stochasticLocalSearch(X, D, C, 100000);
         List<Plan> plans = plansFromVariableAssignment(solution);
 
         return plans;
     }
 
-    private Assignment stochasticLocalSearch(Variable X, Domain D, Constraint C){
-        Assignment A = selectInitialSolution(X, D, C);
-        return A;
-    }
-    //TODO adapt to make better initial assignment
-
-    private Assignment selectInitialSolution(Variable X, Domain D, Constraint C) {
-        List<Task> tasks = D.tasks;
-        List<Vehicle> vehicles = D.vehicles;
-
-        //distribution
-        for(Task t : tasks)
-            X.assignedTasks.get(vehicles.iterator().next()).add(t);
-
-                //ordering
-        for(Vehicle v: vehicles){
-            List<Task> ts = X.assignedTasks.get(v);
-
-            List<Task> pu = new ArrayList<>();
-            List<Task> del = new ArrayList<>();
-            for(Task t : ts) {
-                pu.add(t);
-                pu.add(null);
-                del.add(null);
-                del.add(t);
-            }
-            X.pickUp.put(v, pu);
-            X.delivery.put(v, del);
-
-            //moveOrder
-            List<City> order = new ArrayList<>();
-            for(Task t : ts) {
-                order.add(t.pickupCity);
-                order.add(t.deliveryCity);
-            }
-            X.moveOrder.put(v, order);
-        }
-
-        return new Assignment(X, D, C);
-    }
-    //TODO
 
     private List<Plan> plansFromVariableAssignment(Assignment A){
-        return null;
+
+        Map<Vehicle, Plan> vehiclePlans = new HashMap<>();
+
+        for(Map.Entry<Vehicle, List<Task>> entry: A.X.nextAction.entrySet()){
+            Vehicle vehicle = entry.getKey();
+            City currentCity = vehicle.getCurrentCity();
+            Plan plan = new Plan(currentCity);
+            List<Task> carriedTasks = new ArrayList<>();
+            for(Task task: entry.getValue()){
+                if(!carriedTasks.contains(task)) {
+                    for (City city : currentCity.pathTo(task.pickupCity)) {
+                        plan.appendMove(city);
+                    }
+                    currentCity = task.pickupCity;
+                    plan.appendPickup(task);
+                    carriedTasks.add(task);
+                }else{
+                    for (City city : currentCity.pathTo(task.deliveryCity)) {
+                        plan.appendMove(city);
+                    }
+                    currentCity = task.deliveryCity;
+                    plan.appendDelivery(task);
+                    carriedTasks.remove(task);
+                }
+            }
+            vehiclePlans.put(vehicle, plan);
+        }
+
+        List<Plan> plans = new ArrayList<>();
+        for(Vehicle vehicle: A.D.vehicles){
+            plans.add(vehiclePlans.get(vehicle));
+        }
+
+        return plans;
+    }
+
+    private Assignment stochasticLocalSearch(Variable X, Domain D, Constraint C, int iterations){
+        Assignment A = selectInitialSolution(X, D, C);
+
+        for(int i = 0; i < iterations; i++){
+            Assignment A_old = new Assignment(A);
+            Set<Assignment> N = chooseNeighbors(A_old, D);
+            A = localChoice(A_old, N, 0.4);
+        }
+
+        return A;
+    }
+
+    private Assignment localChoice(Assignment A_old, Set<Assignment> N, double probability){
+
+        Random rand = new Random();
+        if(rand.nextDouble() > probability){
+            return A_old;
+        }
+
+        double bestCost = A_old.cost();
+        Assignment bestAssignment = A_old;
+        for(Assignment assignment: N){
+            if(assignment.cost() < bestCost){
+                bestCost = assignment.cost();
+                bestAssignment = assignment;
+            } else if(assignment.cost() == bestCost){ //if the cost is the same, we randomly assign a new best assignment
+                if(rand.nextBoolean()){
+                    bestCost = assignment.cost();
+                    bestAssignment = assignment;
+                }
+            }
+        }
+
+        return bestAssignment;
+    }
+
+    private Set<Assignment> chooseNeighbors(Assignment A_old, Domain D){
+        Random rand = new Random();
+        Set<Assignment> N = new HashSet<>();
+
+        Vehicle randomVehicle = D.vehicles.get(rand.nextInt(D.vehicles.size()));
+        for(Vehicle vehicle: D.vehicles){
+            if(!vehicle.equals(randomVehicle)){
+                Assignment A1 = changingVehicle(A_old, randomVehicle, vehicle);
+                if(A1.isValid() && !A1.equals(A_old)){
+                    N.add(A1);
+                }
+
+                Assignment A2 = transferringTask(A_old, randomVehicle, vehicle);
+                if(A2.isValid() && !A2.equals(A_old)){
+                    N.add(A2);
+                }
+            }
+        }
+
+
+        return N;
+    }
+
+    //transfer a random task from a random vehicle to another vehicle as its first task
+    private Assignment transferringTask(Assignment A_old, Vehicle randomVehicle, Vehicle vehicle) {
+
+        Random rand = new Random();
+        Assignment A = new Assignment(A_old);
+        List<Task> randomVehicleTasks = new ArrayList<>(A_old.X.nextAction.get(randomVehicle));
+        List<Task> vehicleTasks = new ArrayList<>(A_old.X.nextAction.get(vehicle));
+
+        //a vehicle without assigned tasks cannot transfer tasks, therefore we return the old assignment in order to discard it later on
+        if(!randomVehicleTasks.isEmpty()) {
+            Task randomTask = randomVehicleTasks.get(rand.nextInt(randomVehicleTasks.size()));
+            randomVehicleTasks.removeAll(Collections.singleton(randomTask));
+            if(vehicleTasks.isEmpty()){
+                vehicleTasks.add(0, randomTask);
+                vehicleTasks.add(0, randomTask);
+            } else {
+                vehicleTasks.add(rand.nextInt(vehicleTasks.size()), randomTask);
+                vehicleTasks.add(rand.nextInt(vehicleTasks.size()), randomTask);
+            }
+
+            A.X.nextAction.put(randomVehicle, randomVehicleTasks);
+            A.X.nextAction.put(vehicle, vehicleTasks);
+            return A;
+        }
+
+        return A_old;
+    }
+
+    //switch list of tasks between two vehicles
+    private Assignment changingVehicle(Assignment A_old, Vehicle randomVehicle, Vehicle vehicle){
+
+        Assignment A = new Assignment(A_old);
+        List<Task> randomVehicleTasks = new ArrayList<>(A_old.X.nextAction.get(randomVehicle));
+        List<Task> vehicleTasks = new ArrayList<>(A_old.X.nextAction.get(vehicle));
+
+        //switching two empty lists doesn't make sense, therefore we return the old assignment so that we can discard it later on
+        if(!randomVehicleTasks.isEmpty() || !vehicleTasks.isEmpty()) {
+            A.X.nextAction.put(randomVehicle, vehicleTasks);
+            A.X.nextAction.put(vehicle, randomVehicleTasks);
+            return A;
+        }
+
+        return A_old;
+    }
+
+    // assign every tasks to one vehicle that will pick up and deliver each task after the other
+    private Assignment selectInitialSolution(Variable X, Domain D, Constraint C) {
+
+        List<Task> tasks = new ArrayList<>();
+        for(Task task: D.tasks){
+            tasks.add(task);
+            tasks.add(task);
+        }
+
+        X.nextAction.put(D.vehicles.get(0), tasks);
+
+        return new Assignment(X, D, C);
     }
 
     private class Assignment{
@@ -168,103 +278,160 @@ public class CentralizedTemplate implements CentralizedBehavior {
         private Variable X;
         private Domain D;
         private Constraint C;
-        private double cost;
 
-        public Assignment(Variable X, Domain D, Constraint C){
-            assert(isValid());
+        private Assignment(Variable X, Domain D, Constraint C){
             this.X = X;
             this.D = D;
             this.C = C;
-            this.cost = cost();
+        }
+
+        private Assignment(Assignment A){
+            this.X = new Variable(A.X);
+            this.D = A.D;
+            this.C = A.C;
         }
 
         private boolean isValid(){
 
-            boolean b1 = C.c1(X.nextTask_t);
-            boolean b2 = C.c2(X.nextTask_v, X.time);
-            boolean b3 = C.c3(X.nextTask_t, X.time);
-            boolean b4 = C.c4(X.nextTask_v, X.vehicle);
-            boolean b5 = C.c5(X.nextTask_t, X.vehicle);
-            boolean b6 = C.c6(X.nextTask_t, X.nextTask_v, D.nextTask);
-            boolean b7 = C.c7(X.vehicle);
+            boolean b1 = C.c1(X, D);
+            boolean b2 = C.c2(X, D);
+            boolean b3 = C.c3(X, D);
 
-            return b1 && b2 && b3 && b4 && b5 && b6 && b7;
+            return b1 && b2 && b3;
         }
 
         private double cost(){
             double cost = 0;
 
-            for(Vehicle v : D.vehicles){
-                Task firstTask = X.pickUp.get(v).get(0);
-                if (firstTask != null){
-                    double distance = v.homeCity().distanceTo(firstTask.pickupCity);
-                    cost += distance * v.costPerKm();
-                }
+            for(Map.Entry<Vehicle, List<Task>> entry: X.nextAction.entrySet()){
+                Vehicle vehicle = entry.getKey();
+                List<Task> vehicleTasks = entry.getValue();
+                if(!vehicleTasks.isEmpty()) {
+                    double vehicleCost = vehicle.homeCity().distanceTo(vehicleTasks.get(0).pickupCity);
+                    City currentCity = vehicleTasks.get(0).pickupCity;
 
-                for(int i = 0; i < X.moveOrder.size(); i++){
-                    double distance = X.moveOrder.get(v).get(i).distanceTo(X.moveOrder.get(v).get(i+1));
-                    cost += distance * v.costPerKm();
+                    List<Task> tasksToDeliver = new ArrayList<>();
+                    tasksToDeliver.add(vehicleTasks.get(0));
+
+                    for (int i = 1; i < vehicleTasks.size(); i++) {
+                        Task task = vehicleTasks.get(i);
+                        if (tasksToDeliver.contains(task)) {
+                            vehicleCost += currentCity.distanceTo(task.deliveryCity);
+                            currentCity = task.deliveryCity;
+                            tasksToDeliver.remove(task);
+                        } else {
+                            vehicleCost += currentCity.distanceTo(task.pickupCity);
+                            currentCity = task.pickupCity;
+                            tasksToDeliver.add(task);
+                        }
+                    }
+                    cost += vehicleCost*vehicle.costPerKm();
                 }
             }
 
             return cost;
         }
 
+        @Override
+        public int hashCode() {
+            return Objects.hash(Objects.hash(X), Objects.hash(D), Objects.hash(C));
+        }
+
     }
 
-    private class Variable {
+    private static class Variable {
 
-        //either use pickUp & delivery order or moveOrder (or both)
-        private Map<Vehicle, List<Task>> assignedTasks;
-        private Map<Vehicle, List<Task>> current;
-        private Map<Vehicle, List<Task>> done;
-        private Map<Vehicle, List<Task>> pickUp;
-        private Map<Vehicle, List<Task>> delivery;
-        private Map<Vehicle, List<City>> moveOrder;
+        private Map<Vehicle, List<Task>> nextAction;
 
-        public Variable(List<Vehicle> vehicles, TaskSet tasks) {
+        private Variable(List<Vehicle> vehicles) {
 
-            this.assignedTasks = new HashMap<>(vehicles.size());
-            this.current = new HashMap<>(tasks.size());
-            this.done = new HashMap<>(tasks.size());
-            this.pickUp = new HashMap<>(vehicles.size());
-            this.delivery = new HashMap<>(vehicles.size());
-            this.moveOrder = new HashMap<>(vehicles.size());
-
-            /*for(Task task: tasks){
-                time_pu.put(task, null);
-                time_d.put(task, null);
-            }*/
+            this.nextAction = new HashMap<>(vehicles.size());
 
             for(Vehicle vehicle: vehicles){
-                assignedTasks.put(vehicle, null);
-                current.put(vehicle, null);
-                done.put(vehicle, null);
-                pickUp.put(vehicle, null);
-                delivery.put(vehicle, null);
-                moveOrder.put(vehicle, null);
+                nextAction.put(vehicle, new ArrayList<>());
             }
+        }
+
+        private Variable(Variable X){
+            this.nextAction = new HashMap<>(X.nextAction);
         }
     }
 
-    private class Domain {
+    private static class Domain {
 
         private List<Task> tasks;
         private List<Vehicle> vehicles;
-        private List<Integer> time;     //unnecessary?
-        private List<City> cities;      //unnecessary?
 
-        public Domain(List<Vehicle> vehicles, TaskSet tasks, Topology topology){
+        private Domain(List<Vehicle> vehicles, TaskSet tasks){
             this.vehicles = vehicles;
             this.tasks = new ArrayList<>(tasks);
-            this.time = IntStream.rangeClosed(1, tasks.size()*2).boxed().collect(Collectors.toList());
-            this.cities = new ArrayList<>(topology.cities());
         }
     }
 
-    private class Constraint {
+    private static class Constraint {
 
-        //nextTask(task) != task
+        //same tasks are not assigned to different vehicles
+        private boolean c1(Variable X, Domain D){
+
+            Set<Task> tasks = new HashSet<>(D.tasks);
+
+            for(Map.Entry<Vehicle, List<Task>> entry: X.nextAction.entrySet()){
+                Set<Task> vehicleTasks = new HashSet<>(entry.getValue());
+                for(Task vehicleTask: vehicleTasks) {
+                    if(!tasks.remove(vehicleTask)){
+                        return false;
+                    }
+                }
+            }
+            return tasks.isEmpty();
+        }
+
+        //each task is picked up and delivered only once
+        private boolean c2(Variable X, Domain D){
+
+            for(Map.Entry<Vehicle, List<Task>> entry: X.nextAction.entrySet()) {
+                List<Task> vehicleTasks = new ArrayList<>(entry.getValue());
+                while(!vehicleTasks.isEmpty()){
+                    int listSize = vehicleTasks.size();
+                    Task vehicleTask = vehicleTasks.remove(0);
+                    vehicleTasks.removeAll(Collections.singleton(vehicleTask));
+                    if(listSize - vehicleTasks.size() != 2){
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        //load does not exceed capacity
+        private boolean c3(Variable X, Domain D){
+
+            for(Map.Entry<Vehicle, List<Task>> entry: X.nextAction.entrySet()) {
+
+                List<Task> vehicleTasks = entry.getValue();
+                List<Task> carriedTasks = new ArrayList<>();
+
+                double load = 0;
+                int capacity = entry.getKey().capacity();
+
+                for(Task task: vehicleTasks){
+                    if(carriedTasks.contains(task)){
+                        carriedTasks.remove(task);
+                        load -= task.weight;
+                    } else {
+                        carriedTasks.add(task);
+                        load += task.weight;
+                        if (load > capacity) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+
+        /*//nextTask(task) != task
         private boolean c1(Map<Task, Task> nextTask_t) {
 
             for (Map.Entry<Task, Task> entry : nextTask_t.entrySet()) {
@@ -361,26 +528,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
             }
 
             return true;
-        }
-    }
-
-
-    //probably not useful
-    private class Distances {
-
-        private Map<List<Task>, Double> td_tp;      //delivery -> pickup
-        private Map<Task, Double> length_t;         //shortest length of task (pickup -> delivery)
-        private Map<List<Task>, Double> tp_tp;      //pickup -> pickup
-        private Map<List<Task>, Double> td_td;      //delivery -> delivery
-        private Map<Vehicle, Double> v_tp;          //starting location -> first task
-
-        public Distances(TaskSet tasks, List<Vehicle> vehicles, Topology topology){
-            this.td_tp = new HashMap<>(tasks.size()*(tasks.size()-1));
-            this.length_t = new HashMap<>(tasks.size());
-            this.tp_tp = new HashMap<>(tasks.size()*(tasks.size()-1));
-            this.td_td = new HashMap<>(tasks.size()*(tasks.size()-1));
-            this.v_tp = new HashMap<>(vehicles.size());
-
-        }
+        }*/
     }
 }
