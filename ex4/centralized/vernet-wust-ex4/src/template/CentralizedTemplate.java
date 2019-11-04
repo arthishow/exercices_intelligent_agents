@@ -111,7 +111,7 @@ public class CentralizedTemplate implements CentralizedBehavior {
     }
 
     private List<Plan> optimalPlans(Variable X, Domain D, Constraint C){
-        Assignment solution = stochasticLocalSearch(X, D, C, 100000);
+        Assignment solution = stochasticLocalSearchTimeBased(X, D, C, timeout_plan);
         List<Plan> plans = plansFromVariableAssignment(solution);
 
         return plans;
@@ -155,13 +155,27 @@ public class CentralizedTemplate implements CentralizedBehavior {
         return plans;
     }
 
-    private Assignment stochasticLocalSearch(Variable X, Domain D, Constraint C, int iterations){
+    private Assignment stochasticLocalSearchIterationBased(Variable X, Domain D, Constraint C, int iterations){
         Assignment A = selectInitialSolution(X, D, C);
-
+        long time_start = System.currentTimeMillis();
         for(int i = 0; i < iterations; i++){
             Assignment A_old = new Assignment(A);
             Set<Assignment> N = chooseNeighbors(A_old, D);
-            A = localChoice(A_old, N, 0.4);
+            A = localChoice(A_old, N, 0.5);
+            System.out.println(A.cost());
+        }
+
+        return A;
+    }
+
+    private Assignment stochasticLocalSearchTimeBased(Variable X, Domain D, Constraint C, double time){
+        Assignment A = selectInitialSolution(X, D, C);
+        long time_start = System.currentTimeMillis();
+        while(System.currentTimeMillis() - time_start < time - 3000){
+            Assignment A_old = new Assignment(A);
+            Set<Assignment> N = chooseNeighbors(A_old, D);
+            A = localChoice(A_old, N, 0.5);
+            System.out.println(A.cost());
         }
 
         return A;
@@ -210,8 +224,39 @@ public class CentralizedTemplate implements CentralizedBehavior {
             }
         }
 
+        List<Task> randomVehicleTasks = A_old.X.nextAction.get(randomVehicle);
+        if(!randomVehicleTasks.isEmpty()) {
+            int i = rand.nextInt(randomVehicleTasks.size());
+            int j = rand.nextInt(randomVehicleTasks.size());
+            Assignment A3 = changingTaskOrder(A_old, randomVehicle, i, j);
+            if (A3.isValid() && !A3.equals(A_old)) {
+                N.add(A3);
+            }
+        }
+        /*for(int i = 0; i < randomVehicleTasks.size() - 1; i++){
+            for(int j = i + 1; j < randomVehicleTasks.size(); j++){
+                Assignment A3 = changingTaskOrder(A_old, randomVehicle, i, j);
+                if(A3.isValid() && !A3.equals(A_old)){
+                    N.add(A3);
+                }
+            }
+        }*/
 
         return N;
+    }
+
+    public Assignment changingTaskOrder(Assignment A_old, Vehicle randomVehicle, int i, int j){
+
+        Random rand = new Random();
+        Assignment A = new Assignment(A_old);
+        List<Task> randomVehicleTasks = new ArrayList<>(A_old.X.nextAction.get(randomVehicle));
+        if(!randomVehicleTasks.get(i).equals(randomVehicleTasks.get(j))) {
+            Collections.swap(randomVehicleTasks, i, j);
+            A.X.nextAction.put(randomVehicle, randomVehicleTasks);
+            return A;
+        }
+
+        return A_old;
     }
 
     //transfer a random task from a random vehicle to another vehicle as its first task
