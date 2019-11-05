@@ -30,6 +30,7 @@ public class CentralizedTemplate implements CentralizedBehavior {
     private Agent agent;
     private long timeout_setup;
     private long timeout_plan;
+    private Random rand = new Random();
 
     @Override
     public void setup(Topology topology, TaskDistribution distribution,
@@ -120,27 +121,20 @@ public class CentralizedTemplate implements CentralizedBehavior {
         return plans;
     }
 
-    private Assignment stochasticLocalSearchIterationBased(Variable X, Domain D, Constraint C, int iterations){
-        Assignment A = selectInitialSolution(X, D, C);
-        long time_start = System.currentTimeMillis();
-        for(int i = 0; i < iterations; i++){
-            Assignment A_old = new Assignment(A);
-            Set<Assignment> N = chooseNeighbors(A_old, D);
-            A = localChoice(A_old, N, 0.5);
-            System.out.println(A.cost());
-        }
-
-        return A;
-    }
-
     private Assignment stochasticLocalSearchTimeBased(Variable X, Domain D, Constraint C, double time){
         Assignment A = selectInitialSolution(X, D, C);
+        System.out.print(A.isValid());
+        double bestCost = Double.MAX_VALUE;
         long time_start = System.currentTimeMillis();
         while(System.currentTimeMillis() - time_start < time - 3000){
             Assignment A_old = new Assignment(A);
             Set<Assignment> N = chooseNeighbors(A_old, D);
-            A = localChoice(A_old, N, 0.5);
-            System.out.println(A.cost());
+            A = localChoice(A_old, N, 0.4);
+            double A_cost = A.cost();
+            if(A_cost < bestCost) {
+                bestCost = A_cost;
+                System.out.println(A.cost());
+            }
         }
 
         return A;
@@ -148,7 +142,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
 
     private Assignment localChoice(Assignment A_old, Set<Assignment> N, double probability){
 
-        Random rand = new Random();
         if(rand.nextDouble() > probability){
             return A_old;
         }
@@ -171,16 +164,16 @@ public class CentralizedTemplate implements CentralizedBehavior {
     }
 
     private Set<Assignment> chooseNeighbors(Assignment A_old, Domain D){
-        Random rand = new Random();
+
         Set<Assignment> N = new HashSet<>();
 
         Vehicle randomVehicle = D.vehicles.get(rand.nextInt(D.vehicles.size()));
         for(Vehicle vehicle: D.vehicles){
             if(!vehicle.equals(randomVehicle)){
-                Assignment A1 = changingVehicle(A_old, randomVehicle, vehicle);
+                /*Assignment A1 = changingVehicle(A_old, randomVehicle, vehicle);
                 if(A1.isValid() && !A1.equals(A_old)){
                     N.add(A1);
-                }
+                }*/
 
                 Assignment A2 = transferringTask(A_old, randomVehicle, vehicle);
                 if(A2.isValid() && !A2.equals(A_old)){
@@ -198,6 +191,7 @@ public class CentralizedTemplate implements CentralizedBehavior {
                 N.add(A3);
             }
         }
+
         /*for(int i = 0; i < randomVehicleTasks.size() - 1; i++){
             for(int j = i + 1; j < randomVehicleTasks.size(); j++){
                 Assignment A3 = changingTaskOrder(A_old, randomVehicle, i, j);
@@ -212,7 +206,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
 
     public Assignment changingTaskOrder(Assignment A_old, Vehicle randomVehicle, int i, int j){
 
-        Random rand = new Random();
         Assignment A = new Assignment(A_old);
         List<Task> randomVehicleTasks = new ArrayList<>(A_old.X.nextAction.get(randomVehicle));
         if(!randomVehicleTasks.get(i).equals(randomVehicleTasks.get(j))) {
@@ -227,7 +220,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
     //transfer a random task from a random vehicle to another vehicle as its first task
     private Assignment transferringTask(Assignment A_old, Vehicle randomVehicle, Vehicle vehicle) {
 
-        Random rand = new Random();
         Assignment A = new Assignment(A_old);
         List<Task> randomVehicleTasks = new ArrayList<>(A_old.X.nextAction.get(randomVehicle));
         List<Task> vehicleTasks = new ArrayList<>(A_old.X.nextAction.get(vehicle));
@@ -269,33 +261,44 @@ public class CentralizedTemplate implements CentralizedBehavior {
         return A_old;
     }
 
-    // assign every tasks to one vehicle that will pick up and deliver each task after the other
+
     private Assignment selectInitialSolution(Variable X, Domain D, Constraint C) {
 
-        double nbTasks = D.tasks.size();
-        double nbVehicles = D.vehicles.size();
-        int nbTasksEach = (int) Math.floor(nbTasks / nbVehicles);
-        double remaining = nbTasks % nbVehicles;
-
-        Iterator<Task> iterator = D.tasks.iterator();
-
-        for(Vehicle vehicle : D.vehicles){
-            List<Task> initialTasks = new ArrayList<>(nbTasksEach);
-
-            for(int count = 0; count<nbTasksEach; count++){
-                Task task = iterator.next();
-                initialTasks.add(task);
-                initialTasks.add(task);
+        List<Task> tasks = new ArrayList<>(D.tasks);
+        for(Vehicle vehicle: D.vehicles){
+            List<Task> initialTasks = new ArrayList<>();
+            List<Task> carriedTasks = new ArrayList<>();
+            double load = 0;
+            for(Task task: D.tasks){
+                if(vehicle.homeCity().equals(task.pickupCity)){
+                    load += task.weight;
+                    if(load > vehicle.capacity()){
+                        for(Task carriedTask: carriedTasks){
+                            initialTasks.add(carriedTask);
+                        }
+                        load = task.weight;
+                        initialTasks.add(task);
+                        carriedTasks = new ArrayList<>();
+                        carriedTasks.add(task);
+                    } else {
+                        load += task.weight;
+                        carriedTasks.add(task);
+                        initialTasks.add(task);
+                    }
+                    tasks.remove(task);
+                }
             }
 
-            if(remaining>0){
-                Task task = iterator.next();
+            for(Task task: carriedTasks){
                 initialTasks.add(task);
-                initialTasks.add(task);
-                remaining--;
             }
-
             X.nextAction.put(vehicle, initialTasks);
+        }
+
+        int i = 0;
+        for(Task task: tasks){
+            X.nextAction.get(D.vehicles.get(0)).add(task);
+            X.nextAction.get(D.vehicles.get(0)).add(task);
         }
 
         return new Assignment(X, D, C);
