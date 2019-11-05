@@ -58,9 +58,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
     public List<Plan> plan(List<Vehicle> vehicles, TaskSet tasks) {
         long time_start = System.currentTimeMillis();
 
-        int nb_vehicles = vehicles.size();
-        int nb_tasks = tasks.size();
-
         Variable X = new Variable(vehicles);
         Domain D = new Domain(vehicles, tasks);
         Constraint C = new Constraint();
@@ -123,21 +120,56 @@ public class CentralizedTemplate implements CentralizedBehavior {
 
     private Assignment stochasticLocalSearchTimeBased(Variable X, Domain D, Constraint C, double time){
         Assignment A = selectInitialSolution(X, D, C);
-        System.out.print(A.isValid());
-        double bestCost = Double.MAX_VALUE;
+        List<Assignment> oldAssignments = new LinkedList<>();
+
+        double globalBestCost = Double.MAX_VALUE;
         long time_start = System.currentTimeMillis();
-        while(System.currentTimeMillis() - time_start < time - 3000){
+        int maxIterationsOnAssignment = 20000;
+        int maxBacktrackIterations = 50;
+        int nbBacktracks = 0;
+        int countCurrentAssignmentIterations = 0;
+
+        while(System.currentTimeMillis() - time_start < time - 3000) {
             Assignment A_old = new Assignment(A);
             Set<Assignment> N = chooseNeighbors(A_old, D);
             A = localChoice(A_old, N, 0.4);
             double A_cost = A.cost();
-            if(A_cost < bestCost) {
-                bestCost = A_cost;
-                System.out.println(A.cost());
+
+            if (A_cost < globalBestCost) {
+                globalBestCost = A_cost;
+                nbBacktracks = 0;
+
+                if(nbBacktracks>0) {
+                    List<Assignment> keepAssignments = new LinkedList<>(oldAssignments.subList(0, nbBacktracks));
+                    List<Assignment> shiftAssignments = new LinkedList<>(oldAssignments.subList(nbBacktracks, oldAssignments.size()));
+                    oldAssignments.clear();
+                    oldAssignments.addAll(keepAssignments);
+                    oldAssignments.add(A);
+                    oldAssignments.addAll(shiftAssignments);
+                }
+                else
+                    oldAssignments.add(A);
+            }
+
+            countCurrentAssignmentIterations++;
+            if(countCurrentAssignmentIterations > maxIterationsOnAssignment){
+                nbBacktracks++;
+                int index = oldAssignments.size()-nbBacktracks;
+                if (index<=0)
+                    A = oldAssignments.get(0);
+                else
+                    A = oldAssignments.get(index);
+
+                countCurrentAssignmentIterations=0;
+            }
+
+            if(nbBacktracks > maxBacktrackIterations){
+                maxIterationsOnAssignment += 20000;
+                maxBacktrackIterations = (int) Math.ceil(maxBacktrackIterations/2);
+                nbBacktracks = 0;
             }
         }
-
-        return A;
+        return oldAssignments.get(oldAssignments.size()-1);
     }
 
     private Assignment localChoice(Assignment A_old, Set<Assignment> N, double probability){
@@ -170,11 +202,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
         Vehicle randomVehicle = D.vehicles.get(rand.nextInt(D.vehicles.size()));
         for(Vehicle vehicle: D.vehicles){
             if(!vehicle.equals(randomVehicle)){
-                /*Assignment A1 = changingVehicle(A_old, randomVehicle, vehicle);
-                if(A1.isValid() && !A1.equals(A_old)){
-                    N.add(A1);
-                }*/
-
                 Assignment A2 = transferringTask(A_old, randomVehicle, vehicle);
                 if(A2.isValid() && !A2.equals(A_old)){
                     N.add(A2);
@@ -191,15 +218,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
                 N.add(A3);
             }
         }
-
-        /*for(int i = 0; i < randomVehicleTasks.size() - 1; i++){
-            for(int j = i + 1; j < randomVehicleTasks.size(); j++){
-                Assignment A3 = changingTaskOrder(A_old, randomVehicle, i, j);
-                if(A3.isValid() && !A3.equals(A_old)){
-                    N.add(A3);
-                }
-            }
-        }*/
 
         return N;
     }
