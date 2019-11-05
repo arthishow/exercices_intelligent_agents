@@ -129,7 +129,7 @@ public class CentralizedTemplate implements CentralizedBehavior {
         int nbBacktracks = 0;
         int countCurrentAssignmentIterations = 0;
 
-        while(System.currentTimeMillis() - time_start < time - 3000) {
+        while(System.currentTimeMillis() - time_start < time - 5000) {
             Assignment A_old = new Assignment(A);
             Set<Assignment> N = chooseNeighbors(A_old, D);
             A = localChoice(A_old, N, 0.4);
