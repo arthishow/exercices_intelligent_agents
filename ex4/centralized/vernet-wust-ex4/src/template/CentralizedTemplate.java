@@ -120,6 +120,7 @@ public class CentralizedTemplate implements CentralizedBehavior {
 
     private Assignment stochasticLocalSearchTimeBased(Variable X, Domain D, Constraint C, double time){
         Assignment A = selectInitialSolution(X, D, C);
+        Assignment globalBestA = new Assignment(A);
         List<Assignment> oldAssignments = new LinkedList<>();
 
         double globalBestCost = Double.MAX_VALUE;
@@ -136,6 +137,7 @@ public class CentralizedTemplate implements CentralizedBehavior {
             double A_cost = A.cost();
 
             if (A_cost < globalBestCost) {
+                globalBestA = A;
                 globalBestCost = A_cost;
                 nbBacktracks = 0;
 
@@ -149,6 +151,8 @@ public class CentralizedTemplate implements CentralizedBehavior {
                 }
                 else
                     oldAssignments.add(A);
+
+                System.out.println("Best cost: "+A_cost+" from # Solutions: "+oldAssignments.size());
             }
 
             countCurrentAssignmentIterations++;
@@ -161,6 +165,7 @@ public class CentralizedTemplate implements CentralizedBehavior {
                     A = oldAssignments.get(index);
 
                 countCurrentAssignmentIterations=0;
+                System.out.println("Backtracked: "+nbBacktracks);
             }
 
             if(nbBacktracks > maxBacktrackIterations){
@@ -169,7 +174,7 @@ public class CentralizedTemplate implements CentralizedBehavior {
                 nbBacktracks = 0;
             }
         }
-        return oldAssignments.get(oldAssignments.size()-1);
+        return globalBestA;
     }
 
     private Assignment localChoice(Assignment A_old, Set<Assignment> N, double probability){
