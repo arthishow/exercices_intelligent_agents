@@ -17,8 +17,8 @@
 		<!--
 			the probabilities, rewards and weight of tasks
 		-->
-		<reward distribution="constant" policy="short-distances" min="100" max="99999" />
 		<probability distribution="uniform" min="0.0" max="1.0" />
+		<reward distribution="constant" policy="short-distances" min="100" max="99999" />
 		<weight distribution="uniform" min="10" max="30" />
 
 	</tasks>

@@ -80,7 +80,6 @@ public class CentralizedTemplate implements CentralizedBehavior {
         return plans;
     }
 
-
     private List<Plan> plansFromVariableAssignment(Assignment A){
 
         Map<Vehicle, Plan> vehiclePlans = new HashMap<>();
@@ -120,68 +119,75 @@ public class CentralizedTemplate implements CentralizedBehavior {
 
     private Assignment stochasticLocalSearchTimeBased(Variable X, Domain D, Constraint C, double time){
         Assignment A = selectInitialSolution(X, D, C);
+        Assignment localBestA = new Assignment(A);
         Assignment globalBestA = new Assignment(A);
         List<Assignment> oldAssignments = new LinkedList<>();
 
         double globalBestCost = Double.MAX_VALUE;
-        long time_start = System.currentTimeMillis();
-        int maxIterationsOnAssignment = 20000;
-        int maxBacktrackIterations = 50;
-        int nbBacktracks = 0;
-        int countCurrentAssignmentIterations = 0;
+        int numberOfTries = 3;
+        int timeMargin = 3000; //ms
 
-        while(System.currentTimeMillis() - time_start < time - 5000) {
-            Assignment A_old = new Assignment(A);
-            Set<Assignment> N = chooseNeighbors(A_old, D);
-            A = localChoice(A_old, N, 0.4);
-            double A_cost = A.cost();
+        for(int i=1; i<=numberOfTries; i++) {
+            long time_start = System.currentTimeMillis();
+            double localBestCost = Double.MAX_VALUE;
+            int maxIterationsOnAssignment = 50000;
+            int maxBacktrackIterations = 20;
+            int nbBacktracks = 0;
+            int countCurrentAssignmentIterations = 0;
 
-            if (A_cost < globalBestCost) {
-                globalBestA = A;
-                globalBestCost = A_cost;
-                nbBacktracks = 0;
+            while (System.currentTimeMillis() - time_start < time/numberOfTries - timeMargin/numberOfTries) {
+                Assignment A_old = new Assignment(A);
+                Set<Assignment> N = chooseNeighbors(A_old, D, 0.4);
+                A = localChoice(A_old, N);
+                double A_cost = A.cost();
 
-                if(nbBacktracks>0) {
-                    List<Assignment> keepAssignments = new LinkedList<>(oldAssignments.subList(0, nbBacktracks));
-                    List<Assignment> shiftAssignments = new LinkedList<>(oldAssignments.subList(nbBacktracks, oldAssignments.size()));
-                    oldAssignments.clear();
-                    oldAssignments.addAll(keepAssignments);
+                if (A_cost < localBestCost) {
+                    localBestA = A;
+                    localBestCost = A_cost;
+                    nbBacktracks = 0;
                     oldAssignments.add(A);
-                    oldAssignments.addAll(shiftAssignments);
+
+                    System.out.println("Best cost: " + A_cost + " from "+ oldAssignments.size()+" Solutions in try: "+i);
                 }
-                else
-                    oldAssignments.add(A);
 
-                System.out.println("Best cost: "+A_cost+" from # Solutions: "+oldAssignments.size());
+                countCurrentAssignmentIterations++;
+
+                if (countCurrentAssignmentIterations > maxIterationsOnAssignment) {
+                    nbBacktracks++;
+                    if (nbBacktracks > maxBacktrackIterations) {
+                        maxIterationsOnAssignment += 20000;
+                        maxBacktrackIterations = (int) Math.ceil(maxBacktrackIterations / 2);
+                        nbBacktracks = 0;
+                    } else {
+                        int index = oldAssignments.size() - nbBacktracks;
+                        if (index <= 0) {
+                            A = oldAssignments.get(0);
+                        } else {
+                            A = oldAssignments.get(index);
+                        }
+
+                        countCurrentAssignmentIterations = 0;
+                        System.out.println("Backtracked: " + nbBacktracks);
+                    }
+                }
             }
 
-            countCurrentAssignmentIterations++;
-            if(countCurrentAssignmentIterations > maxIterationsOnAssignment){
-                nbBacktracks++;
-                int index = oldAssignments.size()-nbBacktracks;
-                if (index<=0)
-                    A = oldAssignments.get(0);
-                else
-                    A = oldAssignments.get(index);
+            System.out.println("Best cost in try "+i+" found to be: " + localBestCost);
 
-                countCurrentAssignmentIterations=0;
-                System.out.println("Backtracked: "+nbBacktracks);
-            }
+            oldAssignments.clear();
+            A = selectInitialSolution(X, D, C);
 
-            if(nbBacktracks > maxBacktrackIterations){
-                maxIterationsOnAssignment += 20000;
-                maxBacktrackIterations = (int) Math.ceil(maxBacktrackIterations/2);
-                nbBacktracks = 0;
+            if(localBestCost < globalBestCost){
+                globalBestCost = localBestCost;
+                globalBestA = localBestA;
             }
         }
+        System.out.println("Global Best Cost: " + globalBestCost);
+
         return globalBestA;
     }
 
-    private Assignment localChoice(Assignment A_old, Set<Assignment> N, double probability){
-
-        if(rand.nextDouble() > probability){
-            return A_old;
-        }
+    private Assignment localChoice(Assignment A_old, Set<Assignment> N){
 
         double bestCost = A_old.cost();
         Assignment bestAssignment = A_old;
@@ -200,9 +206,15 @@ public class CentralizedTemplate implements CentralizedBehavior {
         return bestAssignment;
     }
 
-    private Set<Assignment> chooseNeighbors(Assignment A_old, Domain D){
+    private Set<Assignment> chooseNeighbors(Assignment A_old, Domain D, double probability){
 
         Set<Assignment> N = new HashSet<>();
+
+        if(rand.nextDouble() < probability){
+            N.add(A_old);
+            return N;
+        }
+
 
         Vehicle randomVehicle = D.vehicles.get(rand.nextInt(D.vehicles.size()));
         for(Vehicle vehicle: D.vehicles){
@@ -267,26 +279,9 @@ public class CentralizedTemplate implements CentralizedBehavior {
         return A_old;
     }
 
-    //switch list of tasks between two vehicles
-    private Assignment changingVehicle(Assignment A_old, Vehicle randomVehicle, Vehicle vehicle){
-
-        Assignment A = new Assignment(A_old);
-        List<Task> randomVehicleTasks = new ArrayList<>(A_old.X.nextAction.get(randomVehicle));
-        List<Task> vehicleTasks = new ArrayList<>(A_old.X.nextAction.get(vehicle));
-
-        //switching two empty lists doesn't make sense, therefore we return the old assignment so that we can discard it later on
-        if(!randomVehicleTasks.isEmpty() || !vehicleTasks.isEmpty()) {
-            A.X.nextAction.put(randomVehicle, vehicleTasks);
-            A.X.nextAction.put(vehicle, randomVehicleTasks);
-            return A;
-        }
-
-        return A_old;
-    }
-
-
     private Assignment selectInitialSolution(Variable X, Domain D, Constraint C) {
 
+        //Closest Tasks
         List<Task> tasks = new ArrayList<>(D.tasks);
         for(Vehicle vehicle: D.vehicles){
             List<Task> initialTasks = new ArrayList<>();
@@ -318,10 +313,15 @@ public class CentralizedTemplate implements CentralizedBehavior {
             X.nextAction.put(vehicle, initialTasks);
         }
 
-        int i = 0;
+        int nbVehicles = D.vehicles.size();
+        int vehicleIndex = 0;
+
         for(Task task: tasks){
-            X.nextAction.get(D.vehicles.get(0)).add(task);
-            X.nextAction.get(D.vehicles.get(0)).add(task);
+            if (vehicleIndex == nbVehicles)
+                vehicleIndex = 0;
+            X.nextAction.get(D.vehicles.get(vehicleIndex)).add(task);
+            X.nextAction.get(D.vehicles.get(vehicleIndex)).add(task);
+            vehicleIndex++;
         }
 
         return new Assignment(X, D, C);
@@ -383,7 +383,7 @@ public class CentralizedTemplate implements CentralizedBehavior {
                 }
             }
 
-            return cost;
+            return Math.round(cost);
         }
 
         @Override
