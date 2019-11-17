@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!-- defines global settings in the platform -->
-<settings name="auction">		
+<settings name="auction2">
 		
 	<!-- Sizes -->
 	<set world-width="1040" />
