@@ -37,10 +37,8 @@ public class AuctionTemplate implements AuctionBehavior {
     private Constraint C;
     private Domain D;
 
-    private Assignment A;
+    private Assignment currentA;
     private Assignment nextA;
-    private double oldCost;
-    private double currentCost;
 
     private double totalBids;
 
@@ -53,9 +51,8 @@ public class AuctionTemplate implements AuctionBehavior {
         LogistSettings ls = null;
         try {
             ls = Parsers.parseSettings("config" + File.separator + "settings_auction.xml");
-            timeout_auction = ls.get(LogistSettings.TimeoutKey.BID);
-            timeout_plan = ls.get(LogistSettings.TimeoutKey.PLAN);
-
+            timeout_auction = 30000;//ls.get(LogistSettings.TimeoutKey.BID);
+            timeout_plan = 30000;//ls.get(LogistSettings.TimeoutKey.PLAN);
         } catch (Exception exc) {
             System.out.println("There was a problem loading the configuration file.");
         }
@@ -70,7 +67,7 @@ public class AuctionTemplate implements AuctionBehavior {
         X = new Variable(agent.vehicles());
         D = new Domain(agent.vehicles());
         C = new Constraint();
-        A = new Assignment(X,D,C);
+        currentA = new Assignment(X,D,C);
     }
 
 	@Override
@@ -78,8 +75,7 @@ public class AuctionTemplate implements AuctionBehavior {
         if(winner != agent.id()){
             D.tasks.remove(D.tasks.size());
         } else {
-            oldCost = currentCost;
-            A = nextA;
+            currentA = nextA;
         }
     }
 
@@ -106,20 +102,19 @@ public class AuctionTemplate implements AuctionBehavior {
         System.out.println("Number of tasks taken: "+D.tasks.size());
 
         //Add task to domain and search for good solution
-        nextA = initialAssignmentWithNewTask(A, task);
+        nextA = initialAssignmentWithNewTask(currentA, task);
         nextA = stochasticLocalSearchTimeBased(nextA, timeout_auction);
-        currentCost = nextA.cost();
 
         //Marginal Cost: difference of cost between old and new assignment
-        double marginalCost = currentCost - oldCost;
-        if(marginalCost <= 0) {
-            marginalCost = 1;
+        long marginalCost = (long) (nextA.cost() - currentA.cost());
+        if(marginalCost < 0) {
+            marginalCost = 0;
         }
 
-        System.out.println("Current Cost: "+currentCost+", Old Cost: "+oldCost+" -> marginal Cost: "+marginalCost);
+        System.out.println("New cost: "+nextA.cost()+", current cost: "+currentA.cost()+" -> marginal cost: "+marginalCost);
 
         totalBids += marginalCost;
-		return Math.round(marginalCost);
+		return marginalCost + 1;
 	}
 
 	private Long askPriceNaive(Task task){
@@ -142,16 +137,17 @@ public class AuctionTemplate implements AuctionBehavior {
 		
 		System.out.println("Agent " + agent.id() + " has tasks " + tasks);
 
-		Variable X_final = new Variable(vehicles);
 		Domain D_final = new Domain(vehicles, tasks);
-        Assignment A_final = selectInitialSolution(X_final,D_final,C);
+        Assignment finalA = selectInitialSolution(X,D_final,C);
 
-        A_final = stochasticLocalSearchTimeBased(A_final, timeout_plan);
+        finalA = stochasticLocalSearchTimeBased(finalA, timeout_plan);
 
-        List<Plan> plans = plansFromVariableAssignment(A_final);
-
-        System.out.println("Cost of Plans: "+A_final.cost()+", Total bids: "+totalBids);
-		return plans;
+        if(finalA.cost() < currentA.cost()) {
+            finalA = currentA;
+        }
+        List<Plan> plans = plansFromVariableAssignment(finalA);
+        System.out.println("Cost of Plans: "+finalA.cost()+", Total bids: "+totalBids);
+        return plans;
 	}
 
     private List<Plan> plansFromVariableAssignment(Assignment A){
@@ -191,14 +187,15 @@ public class AuctionTemplate implements AuctionBehavior {
         return plans;
     }
 
-    private Assignment stochasticLocalSearchTimeBased(Assignment A, double time){
+    private Assignment stochasticLocalSearchTimeBased(Assignment A, long time){
         Assignment localBestA = new Assignment(A);
         Assignment globalBestA = new Assignment(A);
-        List<Assignment> oldAssignments = new LinkedList<>();
+        List<Assignment> oldAssignments = new ArrayList<>();
 
         double globalBestCost = Double.MAX_VALUE;
-        int numberOfTries = 1;
-        int timeMargin = 10000; //ms
+        int numberOfTries = 5;
+        long timeMargin = 1000;
+        long timePerTry = time/numberOfTries; //ms
 
         for(int i = 0; i < numberOfTries; i++) {
             long time_start = System.currentTimeMillis();
@@ -207,19 +204,20 @@ public class AuctionTemplate implements AuctionBehavior {
             int maxBacktrackIterations = 20;
             int nbBacktracks = 0;
             int countCurrentAssignmentIterations = 0;
+            Assignment newA = new Assignment(A);
 
-            while (System.currentTimeMillis() - time_start < timeMargin) {
-                Assignment A_old = new Assignment(A);
-                Set<Assignment> N = chooseNeighbors(A_old, D, 0.4);
-                A = localChoice(A_old, N);
-                double A_cost = A.cost();
+            while (System.currentTimeMillis() - time_start < timePerTry - timeMargin) {
+                Assignment A_old = new Assignment(newA);
+                Set<Assignment> N = chooseNeighbors(A_old, D, 0.5);
+                newA = localChoice(A_old, N);
+                double newACost = newA.cost();
 
-                if (A_cost < localBestCost) {
-                    localBestA = A;
-                    localBestCost = A_cost;
+                if (newACost < localBestCost) {
+                    localBestA = newA;
+                    localBestCost = newACost;
                     nbBacktracks = 0;
-                    oldAssignments.add(A);
-
+                    countCurrentAssignmentIterations = 0;
+                    oldAssignments.add(newA);
                     //System.out.println("Best cost: " + A_cost + " from "+ oldAssignments.size()+" Solutions in try: "+i);
                 }
 
@@ -229,14 +227,14 @@ public class AuctionTemplate implements AuctionBehavior {
                     nbBacktracks++;
                     if (nbBacktracks > maxBacktrackIterations) {
                         maxIterationsOnAssignment += 20000;
-                        maxBacktrackIterations = (int) Math.ceil(maxBacktrackIterations / 2);
+                        maxBacktrackIterations = maxBacktrackIterations / 2;
                         nbBacktracks = 0;
                     } else {
                         int index = oldAssignments.size() - nbBacktracks;
                         if (index <= 0) {
-                            A = oldAssignments.get(0);
+                            newA = oldAssignments.get(0);
                         } else {
-                            A = oldAssignments.get(index);
+                            newA = oldAssignments.get(index);
                         }
 
                         countCurrentAssignmentIterations = 0;
@@ -245,10 +243,9 @@ public class AuctionTemplate implements AuctionBehavior {
                 }
             }
 
-            System.out.println("Best cost in try "+i+" found to be: " + localBestCost);
+            System.out.println("Best cost in try "+(i+1)+" found to be: " + localBestCost);
 
             oldAssignments.clear();
-            //A = selectInitialSolution(X, D, C);
 
             if(localBestCost < globalBestCost){
                 globalBestCost = localBestCost;
