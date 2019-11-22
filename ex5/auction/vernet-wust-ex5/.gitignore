@@ -3,6 +3,7 @@ history.xml
 /bin
 /tournament
 *.MF
+/out
 
 # IntelliJ IDEA files
 .DS_Store
