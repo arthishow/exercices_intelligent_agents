@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<agents>
+	<!-- An auto-generated list of agents and their behavior classes -->
+	<!--  - jar directory : ./agents/ -->
+	<!--  - generated on  : Thu Nov 21 17:51:16 CET 2019 -->
+	<agent name="agent1">
+		<set class-path="./agents/agent1.jar"/>
+		<set class-name="template.AuctionTemplate"/>
+	</agent>
+	<agent name="agent2">
+		<set class-path="./agents/agent2.jar"/>
+		<set class-name="template.AuctionTemplate"/>
+	</agent>
+</agents>
