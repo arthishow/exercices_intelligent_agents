@@ -33,14 +33,11 @@ public class AuctionTemplate implements AuctionBehavior {
     private static long timeout_auction;
     private static long timeout_plan;
 
-    private Variable X;
-    private Constraint C;
-    private Domain D;
-
     private Assignment currentA;
     private Assignment nextA;
 
-    private double totalBids;
+    private List<Long> bids;
+    private long totalReward;
 
 
     @Override
@@ -51,8 +48,8 @@ public class AuctionTemplate implements AuctionBehavior {
         LogistSettings ls = null;
         try {
             ls = Parsers.parseSettings("config" + File.separator + "settings_auction.xml");
-            timeout_auction = 30000;//ls.get(LogistSettings.TimeoutKey.BID);
-            timeout_plan = 30000;//ls.get(LogistSettings.TimeoutKey.PLAN);
+            timeout_auction = 10000;//ls.get(LogistSettings.TimeoutKey.BID);
+            timeout_plan = 10000;//ls.get(LogistSettings.TimeoutKey.PLAN);
         } catch (Exception exc) {
             System.out.println("There was a problem loading the configuration file.");
         }
@@ -64,18 +61,23 @@ public class AuctionTemplate implements AuctionBehavior {
         long seed = -9019554669489983951L * agent.vehicles().get(0).homeCity().hashCode() * agent.id();
         this.random = new Random(seed);
 
-        X = new Variable(agent.vehicles());
-        D = new Domain(agent.vehicles());
-        C = new Constraint();
-        currentA = new Assignment(X,D,C);
+        this.totalReward = 0;
+        this.bids = new ArrayList<>();
+
+        Variable X = new Variable(agent.vehicles());
+        Domain D = new Domain(agent.vehicles());
+        Constraint C = new Constraint();
+        this.currentA = new Assignment(X,D,C);
     }
 
 	@Override
 	public void auctionResult(Task previous, int winner, Long[] bids) {
         if(winner != agent.id()){
-            D.tasks.remove(D.tasks.size());
+            currentA.D.tasks.remove(currentA.D.tasks.size());
         } else {
-            currentA = nextA;
+            this.totalReward += bids[winner];
+            this.currentA = this.nextA;
+            System.out.println("Number of tasks taken: "+currentA.D.tasks.size());
         }
     }
 
@@ -84,7 +86,7 @@ public class AuctionTemplate implements AuctionBehavior {
 
         //Checks if at least one vehicle can pickup the task
         boolean canCarryTask = false;
-        for(Vehicle vehicle : D.vehicles) {
+        for(Vehicle vehicle : currentA.D.vehicles) {
             if (vehicle.capacity() > task.weight) {
                 canCarryTask = true;
                 break;
@@ -99,12 +101,11 @@ public class AuctionTemplate implements AuctionBehavior {
             return askPriceNaive(task);
         }
 
-        System.out.println("Number of tasks taken: "+D.tasks.size());
-
         //Add task to domain and search for good solution
         nextA = initialAssignmentWithNewTask(currentA, task);
         nextA = stochasticLocalSearchTimeBased(nextA, timeout_auction);
 
+        double test = currentA.cost();
         //Marginal Cost: difference of cost between old and new assignment
         long marginalCost = (long) (nextA.cost() - currentA.cost());
         if(marginalCost < 0) {
@@ -112,9 +113,9 @@ public class AuctionTemplate implements AuctionBehavior {
         }
 
         System.out.println("New cost: "+nextA.cost()+", current cost: "+currentA.cost()+" -> marginal cost: "+marginalCost);
-
-        totalBids += marginalCost;
-		return marginalCost + 1;
+        long bid = marginalCost + 1;
+        bids.add(bid);
+		return bid;
 	}
 
 	private Long askPriceNaive(Task task){
@@ -138,15 +139,16 @@ public class AuctionTemplate implements AuctionBehavior {
 		System.out.println("Agent " + agent.id() + " has tasks " + tasks);
 
 		Domain D_final = new Domain(vehicles, tasks);
-        Assignment finalA = selectInitialSolution(X,D_final,C);
+        Assignment finalA = selectInitialSolution(new Variable(vehicles), new Domain(vehicles, tasks), new Constraint());
 
         finalA = stochasticLocalSearchTimeBased(finalA, timeout_plan);
 
-        if(finalA.cost() < currentA.cost()) {
+        if(currentA.cost() < finalA.cost()) {
             finalA = currentA;
         }
+
         List<Plan> plans = plansFromVariableAssignment(finalA);
-        System.out.println("Cost of Plans: "+finalA.cost()+", Total bids: "+totalBids);
+        System.out.println("Cost of plan: "+finalA.cost()+", total reward: "+totalReward);
         return plans;
 	}
 
@@ -208,7 +210,7 @@ public class AuctionTemplate implements AuctionBehavior {
 
             while (System.currentTimeMillis() - time_start < timePerTry - timeMargin) {
                 Assignment A_old = new Assignment(newA);
-                Set<Assignment> N = chooseNeighbors(A_old, D, 0.5);
+                Set<Assignment> N = chooseNeighbors(A_old, A.D, 0.5);
                 newA = localChoice(A_old, N);
                 double newACost = newA.cost();
 
@@ -301,13 +303,17 @@ public class AuctionTemplate implements AuctionBehavior {
     }
 
     private Assignment initialAssignmentWithNewTask(Assignment A, Task newTask) {
-        D.tasks.add(newTask);
-        //Take the old assignment and add the new Task to the first vehicle
-        Variable X_new = new Variable(X);
-        X_new.nextAction.get(D.vehicles.get(0)).add(newTask);
-        X_new.nextAction.get(D.vehicles.get(0)).add(newTask);
 
-        return new Assignment(X_new,D,C);
+        Assignment newA = new Assignment(A);
+
+        Domain D = new Domain(A.D);
+        newA.D.tasks.add(newTask);
+
+        //add the new Task to the first vehicle
+        newA.X.nextAction.get(D.vehicles.get(0)).add(newTask);
+        newA.X.nextAction.get(D.vehicles.get(0)).add(newTask);
+
+        return newA;
     }
 
     private Assignment localChoice(Assignment A_old, Set<Assignment> N){
@@ -414,7 +420,7 @@ public class AuctionTemplate implements AuctionBehavior {
 
         private Assignment(Assignment A){
             this.X = new Variable(A.X);
-            this.D = A.D;
+            this.D = new Domain(A.D);
             this.C = A.C;
         }
 
@@ -481,7 +487,13 @@ public class AuctionTemplate implements AuctionBehavior {
         }
 
         private Variable(Variable X){
-            this.nextAction = new HashMap<>(X.nextAction);
+            HashMap<Vehicle, List<Task>> copy = new HashMap<>();
+            for (Map.Entry<Vehicle, List<Task>> entry : X.nextAction.entrySet())
+            {
+                copy.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            }
+
+            this.nextAction = copy;
         }
     }
 
@@ -498,6 +510,11 @@ public class AuctionTemplate implements AuctionBehavior {
         private Domain(List<Vehicle> vehicles, TaskSet tasks){
             this.vehicles = vehicles;
             this.tasks = new ArrayList<>(tasks);
+        }
+
+        private Domain(Domain D){
+            this.vehicles = new ArrayList<>(D.vehicles);
+            this.tasks = new ArrayList<>(D.tasks);
         }
     }
 
