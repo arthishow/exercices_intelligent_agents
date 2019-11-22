@@ -1,6 +1,8 @@
 # Project specific files
 history.xml
 /bin
+/tournament
+*.MF
 
 # IntelliJ IDEA files
 .DS_Store
