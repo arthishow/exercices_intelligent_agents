@@ -48,7 +48,7 @@ public class AuctionTemplate implements AuctionBehavior {
         try {
             ls = Parsers.parseSettings("config" + File.separator + "settings_auction.xml");
             timeout_auction = 10000;//ls.get(LogistSettings.TimeoutKey.BID);
-            timeout_plan = 10000;//ls.get(LogistSettings.TimeoutKey.PLAN);
+            timeout_plan = 60000;//ls.get(LogistSettings.TimeoutKey.PLAN);
         } catch (Exception exc) {
             System.out.println("There was a problem loading the configuration file.");
         }
@@ -72,7 +72,7 @@ public class AuctionTemplate implements AuctionBehavior {
 	@Override
 	public void auctionResult(Task previous, int winner, Long[] bids) {
         if(winner != agent.id()){
-            //currentA.D.tasks.remove(currentA.D.tasks.size());
+
         } else {
             this.totalReward += bids[winner];
             this.currentA = this.nextA;
@@ -108,7 +108,7 @@ public class AuctionTemplate implements AuctionBehavior {
         }
 
         System.out.println("New cost: "+nextA.cost()+", current cost: "+currentA.cost()+" -> marginal cost: "+marginalCost);
-        long bid = marginalCost + 1;
+        long bid = marginalCost + 2;
         bids.add(bid);
 		return bid;
 	}
@@ -130,7 +130,7 @@ public class AuctionTemplate implements AuctionBehavior {
 
         List<Plan> plans = plansFromVariableAssignment(finalA);
 
-        System.out.println("Cost of plan: "+finalA.cost()+", total reward: "+totalReward);
+        System.out.println("Cost of plan: "+finalA.cost()+", total reward: "+totalReward+", utility: "+(totalReward-finalA.cost()));
         return plans;
 	}
 
@@ -249,7 +249,7 @@ public class AuctionTemplate implements AuctionBehavior {
             }
         }
 
-        System.out.println("Global Best Cost: " + globalBestCost);
+        System.out.println("Global best cost: " + globalBestCost);
 
         return globalBestA;
     }
