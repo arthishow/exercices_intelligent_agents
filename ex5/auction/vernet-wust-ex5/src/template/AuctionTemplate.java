@@ -5,7 +5,6 @@ import java.io.File;
 import java.util.*;
 
 import logist.LogistSettings;
-import logist.Measures;
 import logist.behavior.AuctionBehavior;
 import logist.agent.Agent;
 import logist.config.Parsers;
@@ -73,7 +72,7 @@ public class AuctionTemplate implements AuctionBehavior {
 	@Override
 	public void auctionResult(Task previous, int winner, Long[] bids) {
         if(winner != agent.id()){
-            currentA.D.tasks.remove(currentA.D.tasks.size());
+            //currentA.D.tasks.remove(currentA.D.tasks.size());
         } else {
             this.totalReward += bids[winner];
             this.currentA = this.nextA;
@@ -97,10 +96,6 @@ public class AuctionTemplate implements AuctionBehavior {
             return null;
         }
 
-        if(agent.name().equals("auction-naive")){
-            return askPriceNaive(task);
-        }
-
         //Add task to domain and search for good solution
         nextA = initialAssignmentWithNewTask(currentA, task);
         nextA = stochasticLocalSearchTimeBased(nextA, timeout_auction);
@@ -118,21 +113,6 @@ public class AuctionTemplate implements AuctionBehavior {
 		return bid;
 	}
 
-	private Long askPriceNaive(Task task){
-
-        Vehicle vehicle = agent.vehicles().get(0);
-        City currentCity = vehicle.getCurrentCity();
-
-        long distanceTask = task.pickupCity.distanceUnitsTo(task.deliveryCity);
-        long distanceSum = distanceTask + currentCity.distanceUnitsTo(task.pickupCity);
-        double marginalCost = Measures.unitsToKM(distanceSum * vehicle.costPerKm());
-
-        double ratio = 1.0 + (random.nextDouble() * 0.05 * task.id);
-        double bid = ratio * marginalCost;
-
-        return Math.round(bid);
-    }
-
 	@Override
 	public List<Plan> plan(List<Vehicle> vehicles, TaskSet tasks) {
 		
@@ -145,12 +125,26 @@ public class AuctionTemplate implements AuctionBehavior {
 
         if(currentA.cost() < finalA.cost()) {
             finalA = currentA;
+            convertAssignmentTasks(finalA, tasks);
         }
 
         List<Plan> plans = plansFromVariableAssignment(finalA);
+
         System.out.println("Cost of plan: "+finalA.cost()+", total reward: "+totalReward);
         return plans;
 	}
+
+	private void convertAssignmentTasks(Assignment A, TaskSet tasks){
+
+        List<Task> tasksList = new ArrayList<>(tasks);
+        for(Map.Entry<Vehicle, List<Task>> entry: A.X.nextAction.entrySet()){
+            List<Task> newTasks = new ArrayList<>();
+            for(Task task: entry.getValue()){
+                newTasks.add(tasksList.get(task.id));
+            }
+            A.X.nextAction.put(entry.getKey(), newTasks);
+        }
+    }
 
     private List<Plan> plansFromVariableAssignment(Assignment A){
 
