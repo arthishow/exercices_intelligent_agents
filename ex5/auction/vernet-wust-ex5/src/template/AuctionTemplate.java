@@ -150,7 +150,7 @@ public class AuctionTemplate implements AuctionBehavior {
             bidsO += bidO;
         }
         avgBidOpponent = Math.round(bidsO/opponentBids.size());
-        System.out.println("Opponents average bid: " + avgBidOpponent);
+        System.out.println(agent.name()+" - Opponent average bid: " + avgBidOpponent);
 
         //                                *** Early game ***
         //Try to get 1st & 2nd task with deficit as it makes the total distribution more efficient
@@ -220,7 +220,7 @@ public class AuctionTemplate implements AuctionBehavior {
         List<Plan> plans = plansFromVariableAssignment(finalA);
 
         long totalWonBids = wonBids.stream().mapToLong(Long::longValue).sum();
-        System.out.println("Cost of plan: "+finalA.cost()+", total reward: "+totalWonBids+", utility: "+(totalWonBids-finalA.cost()));
+        System.out.println(agent.name()+" - Cost of plan: "+finalA.cost()+", total reward: "+totalWonBids+", utility: "+(totalWonBids-finalA.cost()));
 
         return plans;
 	}
@@ -330,7 +330,7 @@ public class AuctionTemplate implements AuctionBehavior {
                 }
             }
 
-            System.out.println("Best cost in try "+(i+1)+" found to be: " + localBestCost);
+            System.out.println(agent.name()+" - Best cost in try "+(i+1)+" found to be: " + localBestCost);
 
             oldAssignments.clear();
 
