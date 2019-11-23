@@ -35,8 +35,10 @@ public class AuctionTemplate implements AuctionBehavior {
     private Assignment currentA;
     private Assignment nextA;
 
-    private List<Long> bids;
-    private long totalReward;
+    private List<Long> ourBids;
+    private Map<Task, Long> opponentBids;
+    private List<Long> wonBids;
+    private boolean opponentSpeculates;
 
 
     @Override
@@ -60,8 +62,10 @@ public class AuctionTemplate implements AuctionBehavior {
         long seed = -9019554669489983951L * agent.vehicles().get(0).homeCity().hashCode() * agent.id();
         this.random = new Random(seed);
 
-        this.totalReward = 0;
-        this.bids = new ArrayList<>();
+        this.wonBids = new ArrayList<>();
+        this.ourBids = new ArrayList<>();
+        this.opponentBids = new LinkedHashMap<>();
+        this.opponentSpeculates = true;
 
         Variable X = new Variable(agent.vehicles());
         Domain D = new Domain(agent.vehicles());
@@ -71,18 +75,26 @@ public class AuctionTemplate implements AuctionBehavior {
 
 	@Override
 	public void auctionResult(Task previous, int winner, Long[] bids) {
-        if(winner != agent.id()){
 
-        } else {
-            this.totalReward += bids[winner];
+        if(winner == agent.id()){
+            this.wonBids.add(bids[winner]);
             this.currentA = this.nextA;
-            System.out.println("Number of tasks taken: "+currentA.D.tasks.size());
+        }
+
+        System.out.println(agent.name()+" - Number of tasks taken: "+wonBids.size());
+
+        //get opponents bids
+        if (bids[0].equals(ourBids.get(ourBids.size()-1))){
+            opponentBids.put(previous, bids[1]);
+        } else {
+            opponentBids.put(previous, bids[0]);
         }
     }
 
 	@Override
 	public Long askPrice(Task task) {
 
+        System.out.println("    ----- Task No.: "+(ourBids.size()+1)+" -----     ");
         //Checks if at least one vehicle can pickup the task
         boolean canCarryTask = false;
         for(Vehicle vehicle : currentA.D.vehicles) {
@@ -100,18 +112,95 @@ public class AuctionTemplate implements AuctionBehavior {
         nextA = initialAssignmentWithNewTask(currentA, task);
         nextA = stochasticLocalSearchTimeBased(nextA, timeout_auction);
 
-        double test = currentA.cost();
-        //Marginal Cost: difference of cost between old and new assignment
         long marginalCost = (long) (nextA.cost() - currentA.cost());
-        if(marginalCost < 0) {
-            marginalCost = 0;
+        System.out.println(agent.name()+" - New cost: "+nextA.cost()+", current cost: "+currentA.cost()+" -> marginal cost: "+marginalCost);
+
+        if(agent.name().equals("auction-main-80")){
+
+            if(marginalCost < 0) {
+                marginalCost = 0;
+            }
+
+            long bid = marginalCost + 1;
+            System.out.println(agent.name()+" - Bid: " + bid);
+            ourBids.add(bid);
         }
 
-        System.out.println("New cost: "+nextA.cost()+", current cost: "+currentA.cost()+" -> marginal cost: "+marginalCost);
-        long bid = marginalCost + 2;
-        bids.add(bid);
-		return bid;
+        if(agent.name().equals("auction-speculate")) {
+            long bid = speculate(task, Math.abs(marginalCost));
+            System.out.println(agent.name()+" - Bid: " + bid);
+            ourBids.add(bid);
+        }
+
+        return ourBids.get(ourBids.size()-1);
 	}
+
+    private long speculate(Task newTask, long marginalCost){
+
+        double speculation = 0.5; // half the reward for the actual cost -> enough? (only on first task)
+        long bid = Math.round(marginalCost * speculation);
+        long avgBidOpponent;
+
+        //dont know if useful, but equals minimum cost of task (for cost/km == 1)
+        double distanceTask = newTask.pickupCity.distanceTo(newTask.deliveryCity);
+
+        //Average opponent bids
+        double bidsO = 0;
+        for(Long bidO : opponentBids.values()){
+            bidsO += bidO;
+        }
+        avgBidOpponent = Math.round(bidsO/opponentBids.size());
+        System.out.println("Opponents average bid: " + avgBidOpponent);
+
+        //                                *** Early game ***
+        //Try to get 1st & 2nd task with deficit as it makes the total distribution more efficient
+        //Include more? Dangerous bc could only be 5 tasks
+        if(ourBids.size()<=1) {
+            if (currentA.D.tasks.size() == 1) {
+                speculation = 0.75; // go slightly higher for second task
+                bid = Math.round(marginalCost * speculation);
+            }
+            for (Vehicle v : currentA.D.vehicles) {
+                if (v.homeCity().equals(newTask.pickupCity))
+                    bid = Math.round(bid * 0.8); //get it even cheaper if a vehicle starts at PU location
+            }
+        }
+
+        //                                  *** Mid Game ***
+        //Try and find a fitting bid according to average of opponent
+        else if(ourBids.size() < 5) {
+            //Got 1st & 2nd task, opponent likely goes with marginal cost strat
+            if (opponentBids.size() == 2 && currentA.D.tasks.size() == 2) {
+                opponentSpeculates = false;
+            }
+
+            //if so: abort speculation and try to get close to opponents bid but stay below
+            if(!opponentSpeculates){
+                bid = marginalCost;
+                while (bid < avgBidOpponent) {
+                    bid += 10;
+                }
+                bid -= 3*distanceTask; // hopefully lower than opponents bid (except lucky task)
+
+            } else { //opponent speculates even lower: try and get tasks at low price to make opponent keep deficit
+                bid = avgBidOpponent;
+            }
+        }
+
+        //                              *** Late Game ***
+        // Make up for early deficit, opponent hopefully has very few tasks
+        else {
+            speculation = 1.2;
+            bid = Math.round(marginalCost*speculation);
+
+            while (bid < avgBidOpponent){
+                bid += 10;
+            }
+            bid -= distanceTask; //reduce again to have bigger chance to get it
+        }
+
+        return bid;
+    }
 
 	@Override
 	public List<Plan> plan(List<Vehicle> vehicles, TaskSet tasks) {
@@ -130,7 +219,9 @@ public class AuctionTemplate implements AuctionBehavior {
 
         List<Plan> plans = plansFromVariableAssignment(finalA);
 
-        System.out.println("Cost of plan: "+finalA.cost()+", total reward: "+totalReward+", utility: "+(totalReward-finalA.cost()));
+        long totalWonBids = wonBids.stream().mapToLong(Long::longValue).sum();
+        System.out.println("Cost of plan: "+finalA.cost()+", total reward: "+totalWonBids+", utility: "+(totalWonBids-finalA.cost()));
+
         return plans;
 	}
 
@@ -189,9 +280,9 @@ public class AuctionTemplate implements AuctionBehavior {
         List<Assignment> oldAssignments = new ArrayList<>();
 
         double globalBestCost = Double.MAX_VALUE;
-        int numberOfTries = 5;
-        long timeMargin = 1000;
-        long timePerTry = time/numberOfTries; //ms
+        int numberOfTries = 3;
+        long timeMargin = (long) Math.min(4000, 0.1*time);
+        long timePerTry = (time-timeMargin)/numberOfTries; //ms
 
         for(int i = 0; i < numberOfTries; i++) {
             long time_start = System.currentTimeMillis();
@@ -202,9 +293,9 @@ public class AuctionTemplate implements AuctionBehavior {
             int countCurrentAssignmentIterations = 0;
             Assignment newA = new Assignment(A);
 
-            while (System.currentTimeMillis() - time_start < timePerTry - timeMargin) {
+            while (System.currentTimeMillis() - time_start < timePerTry) {
                 Assignment A_old = new Assignment(newA);
-                Set<Assignment> N = chooseNeighbors(A_old, A.D, 0.5);
+                Set<Assignment> N = chooseNeighbors(A_old, A.D);
                 newA = localChoice(A_old, N);
                 double newACost = newA.cost();
 
@@ -249,7 +340,7 @@ public class AuctionTemplate implements AuctionBehavior {
             }
         }
 
-        System.out.println("Global best cost: " + globalBestCost);
+        System.out.println(agent.name()+" - Global best cost: " + globalBestCost);
 
         return globalBestA;
     }
@@ -328,14 +419,9 @@ public class AuctionTemplate implements AuctionBehavior {
         return bestAssignments.get(random.nextInt(bestAssignments.size()));
     }
 
-    private Set<Assignment> chooseNeighbors(Assignment A_old, Domain D, double probability){
+    private Set<Assignment> chooseNeighbors(Assignment A_old, Domain D){
 
         Set<Assignment> N = new HashSet<>();
-
-        if(random.nextDouble() > probability){
-            N.add(A_old);
-            return N;
-        }
 
         Vehicle randomVehicle = D.vehicles.get(random.nextInt(D.vehicles.size()));
         for(Vehicle vehicle: D.vehicles){
