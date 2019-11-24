@@ -36,8 +36,11 @@ public class AuctionTemplate implements AuctionBehavior {
     private Assignment nextA;
 
     private List<Long> ourBids;
-    private Map<Task, Long> opponentBids;
+    private List<Long> opponentBids;
     private List<Long> wonBids;
+    private List<Long> opponentWonBids;
+    private double currentUtility;
+    private double newCost;
     private boolean opponentSpeculates;
 
 
@@ -49,8 +52,8 @@ public class AuctionTemplate implements AuctionBehavior {
         LogistSettings ls = null;
         try {
             ls = Parsers.parseSettings("config" + File.separator + "settings_auction.xml");
-            timeout_auction = 10000;//ls.get(LogistSettings.TimeoutKey.BID);
-            timeout_plan = 60000;//ls.get(LogistSettings.TimeoutKey.PLAN);
+            timeout_auction = ls.get(LogistSettings.TimeoutKey.BID);
+            timeout_plan = ls.get(LogistSettings.TimeoutKey.PLAN);
         } catch (Exception exc) {
             System.out.println("There was a problem loading the configuration file.");
         }
@@ -62,9 +65,12 @@ public class AuctionTemplate implements AuctionBehavior {
         long seed = -9019554669489983951L * agent.vehicles().get(0).homeCity().hashCode() * agent.id();
         this.random = new Random(seed);
 
+        this.currentUtility = 0;
+        this.newCost = 0;
         this.wonBids = new ArrayList<>();
         this.ourBids = new ArrayList<>();
-        this.opponentBids = new LinkedHashMap<>();
+        this.opponentBids = new ArrayList<>();
+        this.opponentWonBids = new ArrayList<>();
         this.opponentSpeculates = true;
 
         Variable X = new Variable(agent.vehicles());
@@ -76,18 +82,23 @@ public class AuctionTemplate implements AuctionBehavior {
 	@Override
 	public void auctionResult(Task previous, int winner, Long[] bids) {
 
-        if(winner == agent.id()){
-            this.wonBids.add(bids[winner]);
-            this.currentA = this.nextA;
+        if(bids.length > 1) {
+            int opponentId = 0;
+            if (bids[0].equals(ourBids.get(ourBids.size() - 1))) {
+                opponentId = 1;
+            }
+
+            opponentBids.add(bids[opponentId]);
+            if(winner != agent.id()){
+                opponentWonBids.add(bids[opponentId]);
+            }
         }
 
-        System.out.println(agent.name()+" - Number of tasks taken: "+wonBids.size());
-
-        //get opponents bids
-        if (bids[0].equals(ourBids.get(ourBids.size()-1))){
-            opponentBids.put(previous, bids[1]);
-        } else {
-            opponentBids.put(previous, bids[0]);
+        if(winner == agent.id()){
+            this.wonBids.add(bids[winner]);
+            long totalWonBids = wonBids.stream().mapToLong(Long::longValue).sum();
+            this.currentUtility = totalWonBids - this.newCost;
+            this.currentA = this.nextA;
         }
     }
 
@@ -95,6 +106,8 @@ public class AuctionTemplate implements AuctionBehavior {
 	public Long askPrice(Task task) {
 
         System.out.println("    ----- Task No.: "+(ourBids.size()+1)+" -----     ");
+        System.out.println(agent.name()+" - Number of tasks taken: "+wonBids.size());
+        System.out.println(agent.name()+" - Utility: " + this.currentUtility);
         //Checks if at least one vehicle can pickup the task
         boolean canCarryTask = false;
         for(Vehicle vehicle : currentA.D.vehicles) {
@@ -112,94 +125,83 @@ public class AuctionTemplate implements AuctionBehavior {
         nextA = initialAssignmentWithNewTask(currentA, task);
         nextA = stochasticLocalSearchTimeBased(nextA, timeout_auction);
 
-        long marginalCost = (long) (nextA.cost() - currentA.cost());
+        this.newCost = nextA.cost();
+        long marginalCost = (long) (newCost - currentA.cost());
         System.out.println(agent.name()+" - New cost: "+nextA.cost()+", current cost: "+currentA.cost()+" -> marginal cost: "+marginalCost);
 
-        if(agent.name().equals("auction-main-80")){
-
-            if(marginalCost < 0) {
-                marginalCost = 0;
-            }
-
-            long bid = marginalCost + 1;
-            System.out.println(agent.name()+" - Bid: " + bid);
-            ourBids.add(bid);
+        long bid;
+        if(agent.name().equals("auction-main-80")) {
+            bid = speculate(task, marginalCost);
+        }else{
+            bid = Math.max(0, marginalCost + 50);
         }
 
-        if(agent.name().equals("auction-speculate")) {
-            long bid = speculate(task, Math.abs(marginalCost));
-            System.out.println(agent.name()+" - Bid: " + bid);
-            ourBids.add(bid);
-        }
+        ourBids.add(bid);
+        System.out.println(agent.name()+" - Bid: " + bid);
 
         return ourBids.get(ourBids.size()-1);
 	}
 
     private long speculate(Task newTask, long marginalCost){
 
-        double speculation = 0.5; // half the reward for the actual cost -> enough? (only on first task)
-        long bid = Math.round(marginalCost * speculation);
-        long avgBidOpponent;
+        double speculation = 0.3; // half the reward for the actual cost -> enough? (only on first task)
+        double bid = marginalCost * speculation;
 
-        //dont know if useful, but equals minimum cost of task (for cost/km == 1)
-        double distanceTask = newTask.pickupCity.distanceTo(newTask.deliveryCity);
+        double distanceTask = newTask.pickupCity.distanceTo(newTask.deliveryCity) * currentA.D.vehicles.get(0).costPerKm();
 
         //Average opponent bids
-        double bidsO = 0;
-        for(Long bidO : opponentBids.values()){
-            bidsO += bidO;
+        long avgBidOpponent = opponentBids.stream().mapToLong(Long::longValue).sum();
+        if(opponentBids.size() > 0) {
+            avgBidOpponent = avgBidOpponent / opponentBids.size();
         }
-        avgBidOpponent = Math.round(bidsO/opponentBids.size());
-        System.out.println(agent.name()+" - Opponent average bid: " + avgBidOpponent);
+        System.out.println(agent.name() + " - Opponent average bid: " + avgBidOpponent);
 
         //                                *** Early game ***
         //Try to get 1st & 2nd task with deficit as it makes the total distribution more efficient
         //Include more? Dangerous bc could only be 5 tasks
-        if(ourBids.size()<=1) {
-            if (currentA.D.tasks.size() == 1) {
-                speculation = 0.75; // go slightly higher for second task
-                bid = Math.round(marginalCost * speculation);
+        if(ourBids.size() < 2) {
+            if (wonBids.size() == 1) {
+                speculation = 0.7; // go slightly higher for second task
+                bid = marginalCost * speculation;
             }
             for (Vehicle v : currentA.D.vehicles) {
-                if (v.homeCity().equals(newTask.pickupCity))
-                    bid = Math.round(bid * 0.8); //get it even cheaper if a vehicle starts at PU location
+                if (v.homeCity().equals(newTask.pickupCity)) {
+                    bid = bid * 0.8; //get it even cheaper if a vehicle starts at PU location
+                }
             }
         }
 
         //                                  *** Mid Game ***
         //Try and find a fitting bid according to average of opponent
-        else if(ourBids.size() < 5) {
-            //Got 1st & 2nd task, opponent likely goes with marginal cost strat
-            if (opponentBids.size() == 2 && currentA.D.tasks.size() == 2) {
+        else if(ourBids.size() < 4) {
+            //Got more tasks than opponent, opponent likely goes with marginal cost strategy
+            if(wonBids.size() > opponentWonBids.size()) {
                 opponentSpeculates = false;
+                System.out.println(agent.name()+" - Opponent doesn't speculate");
             }
 
             //if so: abort speculation and try to get close to opponents bid but stay below
+            double deficitToCatchUp = -Math.min(currentUtility, 0); //the goal is to break even after 4 tasks so that we can get a positive utility before entering late game
             if(!opponentSpeculates){
-                bid = marginalCost;
-                while (bid < avgBidOpponent) {
-                    bid += 10;
+                bid = Math.max(marginalCost + deficitToCatchUp/(4 - ourBids.size()), avgBidOpponent - distanceTask);// hopefully lower than opponents bid (except lucky task)
+            }else{
+                if(wonBids.size() < opponentWonBids.size()){ //opponent speculates even lower: try and get tasks at low price to make opponent keep deficit
+                    bid = marginalCost + deficitToCatchUp/(4 - ourBids.size());
                 }
-                bid -= 3*distanceTask; // hopefully lower than opponents bid (except lucky task)
-
-            } else { //opponent speculates even lower: try and get tasks at low price to make opponent keep deficit
-                bid = avgBidOpponent;
             }
         }
 
         //                              *** Late Game ***
         // Make up for early deficit, opponent hopefully has very few tasks
         else {
+            double deficitToCatchUp = -Math.min(currentUtility, 0);
             speculation = 1.2;
-            bid = Math.round(marginalCost*speculation);
+            bid = Math.max(marginalCost*speculation, marginalCost + deficitToCatchUp);
 
-            while (bid < avgBidOpponent){
-                bid += 10;
-            }
-            bid -= distanceTask; //reduce again to have bigger chance to get it
+            bid = Math.max(bid, avgBidOpponent - distanceTask); //reduce again to have bigger chance to get it
         }
 
-        return bid;
+        return (long) Math.max(0, bid);
     }
 
 	@Override
