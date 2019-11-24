@@ -144,7 +144,7 @@ public class AuctionTemplate implements AuctionBehavior {
 
     private long speculate(Task newTask, long marginalCost){
 
-        double speculation = 0.3; // half the reward for the actual cost -> enough? (only on first task)
+        double speculation = 0.5; // half the reward for the actual cost -> enough? (only on first task)
         double bid = marginalCost * speculation;
 
         double distanceTask = newTask.pickupCity.distanceTo(newTask.deliveryCity) * currentA.D.vehicles.get(0).costPerKm();
@@ -177,7 +177,7 @@ public class AuctionTemplate implements AuctionBehavior {
             //Got more tasks than opponent, opponent likely goes with marginal cost strategy
             if(wonBids.size() > opponentWonBids.size()) {
                 opponentSpeculates = false;
-                System.out.println(agent.name()+" - Opponent doesn't speculate");
+                System.out.println(agent.name()+" - Opponent doesn't speculate or not as much as us");
             }
 
             //if so: abort speculation and try to get close to opponents bid but stay below
@@ -195,10 +195,13 @@ public class AuctionTemplate implements AuctionBehavior {
         // Make up for early deficit, opponent hopefully has very few tasks
         else {
             double deficitToCatchUp = -Math.min(currentUtility, 0);
-            speculation = 1.2;
-            bid = Math.max(marginalCost*speculation, marginalCost + deficitToCatchUp);
-
-            bid = Math.max(bid, avgBidOpponent - distanceTask); //reduce again to have bigger chance to get it
+            if(opponentWonBids.size() > wonBids.size()){
+                bid = marginalCost + deficitToCatchUp*0.2;
+            }else{
+                speculation = 1.2;
+                bid = Math.max(marginalCost * speculation, marginalCost + deficitToCatchUp);
+                bid = Math.max(bid, avgBidOpponent - distanceTask); //reduce again to have bigger chance to get it
+            }
         }
 
         return (long) Math.max(0, bid);
