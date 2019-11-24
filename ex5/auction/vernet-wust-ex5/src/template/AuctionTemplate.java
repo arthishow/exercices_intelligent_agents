@@ -234,13 +234,17 @@ public class AuctionTemplate implements AuctionBehavior {
         return plans;
 	}
 
-	private void convertAssignmentTasks(Assignment A, TaskSet tasks){
+    private void convertAssignmentTasks(Assignment A, TaskSet tasks){
 
         List<Task> tasksList = new ArrayList<>(tasks);
         for(Map.Entry<Vehicle, List<Task>> entry: A.X.nextAction.entrySet()){
             List<Task> newTasks = new ArrayList<>();
             for(Task task: entry.getValue()){
-                newTasks.add(tasksList.get(task.id));
+                for(Task correctTask: tasksList){
+                    if(correctTask.id == task.id){
+                        newTasks.add(tasksList.get(correctTask.id));
+                    }
+                }
             }
             A.X.nextAction.put(entry.getKey(), newTasks);
         }
