@@ -130,11 +130,11 @@ public class AuctionTemplate implements AuctionBehavior {
         System.out.println(agent.name()+" - New cost: "+nextA.cost()+", current cost: "+currentA.cost()+" -> marginal cost: "+marginalCost);
 
         long bid;
-        if(agent.name().equals("auction-main-80")) {
+        //if(agent.name().equals("auction-main-80")) {
             bid = speculate(task, marginalCost);
-        }else{
-            bid = Math.max(0, marginalCost + 50);
-        }
+        //}else{
+        //    bid = Math.max(0, marginalCost);
+        //}
 
         ourBids.add(bid);
         System.out.println(agent.name()+" - Bid: " + bid);
@@ -144,7 +144,11 @@ public class AuctionTemplate implements AuctionBehavior {
 
     private long speculate(Task newTask, long marginalCost){
 
-        double speculation = 0.5; // half the reward for the actual cost -> enough? (only on first task)
+        double speculation = 0.3; // half the reward for the actual cost -> enough? (only on first task)
+
+        if(topology.toString().contains("Amsterdam")) //dangerous to speculate too much on NL
+            speculation = 0.5;
+
         double bid = marginalCost * speculation;
 
         double distanceTask = newTask.pickupCity.distanceTo(newTask.deliveryCity) * currentA.D.vehicles.get(0).costPerKm();
@@ -161,7 +165,7 @@ public class AuctionTemplate implements AuctionBehavior {
         //Include more? Dangerous bc could only be 5 tasks
         if(ourBids.size() < 2) {
             if (wonBids.size() == 1) {
-                speculation = 0.7; // go slightly higher for second task
+                speculation += 0.2; // go slightly higher for second task
                 bid = marginalCost * speculation;
             }
             for (Vehicle v : currentA.D.vehicles) {
@@ -210,11 +214,11 @@ public class AuctionTemplate implements AuctionBehavior {
 	@Override
 	public List<Plan> plan(List<Vehicle> vehicles, TaskSet tasks) {
 		
-		System.out.println("Agent " + agent.id() + " has tasks " + tasks);
+		System.out.println("Agent " + agent.name() + " has "+ tasks.size()+" tasks.");
 
-		Domain D_final = new Domain(vehicles, tasks);
-        Assignment finalA = selectInitialSolution(new Variable(vehicles), new Domain(vehicles, tasks), new Constraint());
-
+		//try again to find better plan within timeout_plan
+		Assignment finalA = new Assignment(new Variable(vehicles), new Domain(vehicles, tasks), new Constraint());
+        finalA = selectInitialSolution(finalA.X, finalA.D, finalA.C);
         finalA = stochasticLocalSearchTimeBased(finalA, timeout_plan);
 
         if(currentA.cost() < finalA.cost()) {
@@ -287,7 +291,7 @@ public class AuctionTemplate implements AuctionBehavior {
         double globalBestCost = Double.MAX_VALUE;
         int numberOfTries = 3;
         long timeMargin = (long) Math.min(4000, 0.1*time);
-        long timePerTry = (time-timeMargin)/numberOfTries; //ms
+        long timePerTry = Math.round((double) (time-timeMargin)/numberOfTries); //ms
 
         for(int i = 0; i < numberOfTries; i++) {
             long time_start = System.currentTimeMillis();
@@ -335,7 +339,7 @@ public class AuctionTemplate implements AuctionBehavior {
                 }
             }
 
-            System.out.println(agent.name()+" - Best cost in try "+(i+1)+" found to be: " + localBestCost);
+            //System.out.println(agent.name()+" - Best cost in try "+(i+1)+" found to be: " + localBestCost);
 
             oldAssignments.clear();
 
